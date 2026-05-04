@@ -36,7 +36,6 @@ Trial sequence (timings):
    10. ITI blank                     1000 ms
 """
 
-import math
 import os
 import random
 import csv
@@ -75,7 +74,6 @@ T_RETROCUE      = 140    # retrocue image
 T_BLANK_GAZE    = 2000   # blank gaze period
 T_ITI           = 1000   # inter-trial interval
 
-DRIFT_THRESHOLD_PX = 50
 
 # -- Experiment design --------------------------------------------------------
 # Each entry: (img_first, img_second, condition_label)
@@ -160,20 +158,6 @@ def get_vividness(win):
     return int(key)
 
 
-# -----------------------------------------------------------------------------
-# DRIFT CORRECTION
-# -----------------------------------------------------------------------------
-def do_drift_correction(win, tracker):
-    target_x, target_y = SCREEN_W / 2, SCREEN_H / 2
-    while True:
-        tracker.drift_correction(pos=(target_x, target_y), fix_triggered=True)
-        gaze = tracker.sample()
-        dist = math.sqrt((gaze[0] - target_x) ** 2 + (gaze[1] - target_y) ** 2)
-        if dist <= DRIFT_THRESHOLD_PX:
-            tracker.log(f"Drift_Check_Passed_Error_px_{dist:.2f}")
-            return dist
-        print(f"Drift dist {dist:.1f}px - look at centre")
-
 
 # -----------------------------------------------------------------------------
 # TRIAL LIST GENERATION  (counterbalanced)
@@ -214,11 +198,10 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
     condition_label = trial_def["condition_label"]
     tag             = "training" if is_training else f"trial{trial_num}"
 
-    # -- 1. Fixation cross + drift correction ------------------------------------
-    draw_cross(win)                          # participant fixates before correction
+    # -- 1. Start fixation cross (1000 ms) ---------------------------------------
     if tracker:
-        do_drift_correction(win, tracker)
         tracker.start_recording()
+    draw_cross(win)
     wait_ms(T_START_FIX)
 
     # -- 2. Image 1 (1300 ms) -------------------------------------------------
