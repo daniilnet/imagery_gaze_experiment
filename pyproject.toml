@@ -1,0 +1,13 @@
+[project]
+name = "imagery-experiment"
+version = "0.1.0"
+requires-python = "==3.10.11"
+dependencies = [
+    "psychopy",
+    "PyGaze",
+    "lxml",
+    "pygame",
+]
+
+[tool.uv]
+python = "3.10.11"

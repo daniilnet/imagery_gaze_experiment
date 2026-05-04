@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Subject data
+log_subj_*.csv
+gazepoint_data_*.tsv
+gazepoint_data_*_log.txt
+
+# PyCharm
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
