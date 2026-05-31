@@ -9,5 +9,3 @@ dependencies = [
     "pygame",
 ]
 
-[tool.uv]
-python = "3.10.11"
