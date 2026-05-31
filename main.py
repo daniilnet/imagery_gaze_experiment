@@ -20,11 +20,11 @@ Eye tracker: Gazepoint (OpenGaze protocol).
 Design:
     Training:   4 trials (one per condition, no ET), before main experiment.
 
-    Imagery:    4 conditions x 20 trials = 80 trials, split into two halves.
+    Imagery:    4 conditions x 16 trials = 64 trials, split into two halves.
                 Each condition: one face + one house image.
-                Retrocue counterbalanced: 10 cue=1, 10 cue=2 per condition.
+                Retrocue counterbalanced: 8 cue=1, 8 cue=2 per condition.
 
-    Perception: 4 conditions x 10 trials = 40 trials.
+    Perception: 4 conditions x 4 trials = 16 trials.
                 Same as imagery but step 7 shows the cued image instead of blank.
 
 Trial sequence (timings):
@@ -32,10 +32,10 @@ Trial sequence (timings):
     2. Image 1                       1300 ms
     3. Blank (no cross)               500 ms
     4. Image 2                       1300 ms
-    5. Mask                           500 ms
+    5. Blank after image 2            500 ms
     6. Retrocue number                140 ms
     7. Blank gaze / cued image       2000 ms   (imagery / perception)
-    8. Vividness rating (1-5)        until keypress
+    8. Vividness rating (1-4)        until keypress
     9. ITI blank                     1000 ms
 """
 
@@ -69,13 +69,13 @@ FG_COLOR    = "white"
 POOL_DIR = os.path.join(os.path.dirname(__file__), "pool")
 
 # Timing (ms)
-T_START_FIX     = 1000   # fixation cross before first image
-T_IMG           = 1300   # each image on screen
+T_START_FIX     = 1500   # fixation cross before first image
+T_IMG           = 2000   # each image on screen
 T_BETWEEN_BLANK = 500    # blank between images (no cross)
-T_MASK          = 500    # mask duration (no cross after)
-T_RETROCUE      = 140    # retrocue image
-T_BLANK_GAZE    = 2000   # blank gaze period
-T_ITI           = 1000   # inter-trial interval
+T_POST_IMG2     = 500    # blank after image 2, replaces mask
+T_RETROCUE      = 300    # retrocue number
+T_BLANK_GAZE    = 3500   # blank gaze period
+T_ITI           = 1500   # inter-trial interval
 
 
 # -- Experiment design --------------------------------------------------------
@@ -86,10 +86,10 @@ CONDITIONS = [
     ("house_right.png", "face_left.png",   "house_R_face_L_house1st"),
     ("house_left.png",  "face_right.png",  "house_L_face_R_house1st"),
 ]
-TRIALS_PER_CONDITION      = 20   # 10 cue=1 + 10 cue=2
-HALF                      = 40   # trials in each imagery half
+TRIALS_PER_CONDITION      = 16   # 8 cue=1 + 8 cue=2
+HALF                      = 32   # trials in each imagery half
 N_TRAINING                = 4    # one per condition
-PERCEPTION_PER_CONDITION  = 10   # 40 perception trials total
+PERCEPTION_PER_CONDITION  = 4    # 16 perception trials total (2 cue=1 + 2 cue=2)
 
 # -----------------------------------------------------------------------------
 # HELPERS
@@ -151,16 +151,15 @@ def save_csv(log_rows, log_file):
 # VIVIDNESS RATING
 # -----------------------------------------------------------------------------
 def get_vividness(win):
-    """Display vividness scale and wait for key 1-5. Returns int rating."""
+    """Display vividness scale and wait for key 1-4. Returns int rating."""
     draw_text(win,
               "How vivid was your mental image?\n\n"
               "1 = No image at all\n"
               "2 = Vague / dim\n"
               "3 = Moderately clear\n"
-              "4 = Very clear\n"
-              "5 = Perfectly clear and vivid",
+              "4 = Perfectly clear and vivid",
               height=28)
-    key = wait_keypress(win, keys=['1', '2', '3', '4', '5'])
+    key = wait_keypress(win, keys=['1', '2', '3', '4'])
     return int(key)
 
 
@@ -203,10 +202,10 @@ def build_training_list():
 
 
 def build_perception_list():
-    """40 trials: each condition gets exactly 5 cue=1 + 5 cue=2, shuffled."""
+    """16 trials: each condition gets exactly 2 cue=1 + 2 cue=2, shuffled."""
     trials = []
     for img1, img2, label in CONDITIONS:
-        cues = [1] * (PERCEPTION_PER_CONDITION // 2) + [2] * (PERCEPTION_PER_CONDITION // 2)
+        cues = [1, 1, 2, 2]
         random.shuffle(cues)
         for cue in cues:
             trials.append({
@@ -248,7 +247,7 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
     if tracker:
         tracker.log(f"{tag}_EndFixation_at_{libtime.get_time()}")
 
-    # -- 2. Image 1 (1300 ms) -------------------------------------------------
+    # -- 2. Image 1 (2000 ms) -------------------------------------------------
     t0 = draw_image(win, img1)
     if tracker:
         tracker.log(f"{tag}_StartImage1_{img1}_at_{t0}")
@@ -260,7 +259,7 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
     draw_blank(win)
     wait_ms(T_BETWEEN_BLANK)
 
-    # -- 4. Image 2 (1300 ms) -------------------------------------------------
+    # -- 4. Image 2 (2000 ms) -------------------------------------------------
     t0 = draw_image(win, img2)
     if tracker:
         tracker.log(f"{tag}_StartImage2_{img2}_at_{t0}")
@@ -268,9 +267,9 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
     if tracker:
         tracker.log(f"{tag}_EndImage2_at_{libtime.get_time()}")
 
-    # -- 5. Mask (500 ms) -----------------------------------------------------
-    draw_image(win, "4mask.jpg", size=(850, 639))
-    wait_ms(T_MASK)
+    # -- 5. Blank after image 2 (500 ms) --------------------------------------
+    draw_blank(win)
+    wait_ms(T_POST_IMG2)
 
     # -- 6. Retrocue number (140 ms) ------------------------------------------
     t0 = draw_text(win, str(img_for_gaze), height=24)
@@ -293,12 +292,15 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
     if tracker:
         tracker.log(f"{tag}_EndStep7_at_{libtime.get_time()}")
 
-    # -- 8. Vividness rating (blocks until keypress 1-5) ----------------------
-    if tracker:
-        tracker.log(f"{tag}_StartVividnessRating")
-    vividness = get_vividness(win)
-    if tracker:
-        tracker.log(f"{tag}_VividnessRating_{vividness}")
+    # -- 8. Vividness rating (imagery only) --------------------------------------
+    if mode == 'perception':
+        vividness = None
+    else:
+        if tracker:
+            tracker.log(f"{tag}_StartVividnessRating")
+        vividness = get_vividness(win)
+        if tracker:
+            tracker.log(f"{tag}_VividnessRating_{vividness}")
 
     # -- 9. ITI blank (1000 ms) -----------------------------------------------
     draw_blank(win)
@@ -314,11 +316,12 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
         tracker.log_var("img_second",            img2)
         tracker.log_var("ImgForGaze_1st_or_2nd", img_for_gaze)
         tracker.log_var("cued_image",            cued_image)
-        tracker.log_var("vividness",             vividness)
+        if vividness is not None:
+            tracker.log_var("vividness",         vividness)
 
     # -- CSV log (non-training trials only) -----------------------------------
     if not is_training:
-        log_rows.append({
+        row = {
             "phase":                 mode,
             "trial_num":             trial_num,
             "condition_label":       condition_label,
@@ -327,7 +330,8 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
             "ImgForGaze_1st_or_2nd": img_for_gaze,
             "cued_image":            cued_image,
             "vividness":             vividness,
-        })
+        }
+        log_rows.append(row)
 
     return vividness
 
@@ -344,9 +348,6 @@ def run_training(win):
     draw_text(win,
               "PRACTICE\n\n"
               "You will now see a few practice trials.\n\n"
-              "Study each image pair carefully.\n"
-              "After a cue, imagine the indicated image as vividly as you can.\n"
-              "Then rate how vivid your mental image was (1-5).\n\n"
               "Press SPACE to begin.")
     wait_keypress(win, keys=['space'])
 
@@ -398,6 +399,18 @@ def main():
 
     # -- Training -------------------------------------------------------------
     run_training(win)
+
+    # -- Post-training: continue or quit --------------------------------------
+    draw_text(win,
+              "Practice complete!\n\n"
+              "Press  C  to start the main experiment\n"
+              "Press  Q  to quit.")
+    key = wait_keypress(win, keys=['c', 'q'])
+    if key == 'q':
+        tracker.close()
+        disp.close()
+        win.close()
+        core.quit()
 
     # -- Build trial lists ----------------------------------------------------
     all_trials       = build_trial_list()
