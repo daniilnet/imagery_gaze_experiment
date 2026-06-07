@@ -20,9 +20,10 @@ Eye tracker: Gazepoint (OpenGaze protocol).
 Design:
     Training:   4 trials (one per condition, no ET), before main experiment.
 
-    Imagery:    4 conditions x 16 trials = 64 trials, split into two halves.
+    Imagery:    4 conditions x 16 trials = 64 trials.
                 Each condition: one face + one house image.
                 Retrocue counterbalanced: 8 cue=1, 8 cue=2 per condition.
+                Break every 16 trials (3 breaks total within imagery block).
 
     Perception: 4 conditions x 4 trials = 16 trials.
                 Same as imagery but step 7 shows the cued image instead of blank.
@@ -40,7 +41,6 @@ Trial sequence (timings):
 """
 
 import os
-import random
 import csv
 from datetime import datetime
 
@@ -77,6 +77,7 @@ T_RETROCUE      = 300    # retrocue number
 T_BLANK_GAZE    = 3500   # blank gaze period
 T_ITI           = 1500   # inter-trial interval
 
+BREAK_EVERY = 16         # show a break screen after every N imagery trials
 
 # -- Experiment design --------------------------------------------------------
 # Each entry: (img_first, img_second, condition_label)
@@ -87,9 +88,104 @@ CONDITIONS = [
     ("house_left.png",  "face_right.png",  "house_L_face_R_house1st"),
 ]
 TRIALS_PER_CONDITION      = 16   # 8 cue=1 + 8 cue=2
-HALF                      = 32   # trials in each imagery half
 N_TRAINING                = 4    # one per condition
 PERCEPTION_PER_CONDITION  = 4    # 16 perception trials total (2 cue=1 + 2 cue=2)
+
+# -----------------------------------------------------------------------------
+# FIXED PSEUDORANDOM TRIAL ORDERS  (seed=42, same for every participant)
+# -----------------------------------------------------------------------------
+FIXED_IMAGERY_TRIALS = [
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
+]
+
+FIXED_TRAINING_TRIALS = [
+    {'condition_label': 'house_L_face_R_house1st', 'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
+    {'condition_label': 'house_R_face_L_house1st', 'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
+    {'condition_label': 'face_L_house_R_face1st',  'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
+    {'condition_label': 'face_R_house_L_face1st',  'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
+]
+
+FIXED_PERCEPTION_TRIALS = [
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
+    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
+    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
+    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
+    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
+]
 
 # -----------------------------------------------------------------------------
 # HELPERS
@@ -161,61 +257,6 @@ def get_vividness(win):
               height=28)
     key = wait_keypress(win, keys=['1', '2', '3', '4'])
     return int(key)
-
-
-
-# -----------------------------------------------------------------------------
-# TRIAL LIST GENERATION  (counterbalanced)
-# -----------------------------------------------------------------------------
-def build_trial_list():
-    """
-    80 trials: each condition gets exactly 10 cue=1 + 10 cue=2, then
-    the full list is shuffled.
-    """
-    trials = []
-    for img1, img2, label in CONDITIONS:
-        cues = [1] * (TRIALS_PER_CONDITION // 2) + [2] * (TRIALS_PER_CONDITION // 2)
-        random.shuffle(cues)
-        for cue in cues:
-            trials.append({
-                "img_first":       img1,
-                "img_second":      img2,
-                "condition_label": label,
-                "img_for_gaze":    cue,
-            })
-    random.shuffle(trials)
-    return trials
-
-
-def build_training_list():
-    """4 trials, one per condition, random cue, shuffled."""
-    trials = []
-    for img1, img2, label in CONDITIONS:
-        trials.append({
-            "img_first":       img1,
-            "img_second":      img2,
-            "condition_label": label,
-            "img_for_gaze":    random.choice([1, 2]),
-        })
-    random.shuffle(trials)
-    return trials
-
-
-def build_perception_list():
-    """16 trials: each condition gets exactly 2 cue=1 + 2 cue=2, shuffled."""
-    trials = []
-    for img1, img2, label in CONDITIONS:
-        cues = [1, 1, 2, 2]
-        random.shuffle(cues)
-        for cue in cues:
-            trials.append({
-                "img_first":       img1,
-                "img_second":      img2,
-                "condition_label": label,
-                "img_for_gaze":    cue,
-            })
-    random.shuffle(trials)
-    return trials
 
 
 # -----------------------------------------------------------------------------
@@ -340,35 +381,33 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
 # TRAINING SESSION
 # -----------------------------------------------------------------------------
 def run_training(win):
-    """
-    4 practice trials, no eye tracker. Robust transition to main experiment:
-    - events are cleared before and after
-    - window is left blank and stable before returning
-    """
-    draw_text(win,
-              "PRACTICE\n\n"
-              "You will now see a few practice trials.\n\n"
-              "Press SPACE to begin.")
-    wait_keypress(win, keys=['space'])
-
-    for i, trial_def in enumerate(build_training_list(), start=1):
+    for i, trial_def in enumerate(FIXED_TRAINING_TRIALS, start=1):
         run_trial_sequence(win, tracker=None, trial_num=i,
                            trial_def=trial_def, log_rows=[],
                            is_training=True)
-
-    # -- Clean transition: blank screen, flush events, then show message ------
     draw_blank(win)
     event.clearEvents()
-    core.wait(0.5)   # brief pause so last ITI doesn't bleed into next screen
+    core.wait(0.5)
 
-    draw_text(win,
-              "Practice complete!\n\n"
-              "The main experiment will now begin.\n\n"
-              "Press SPACE to continue.")
-    wait_keypress(win, keys=['space'])
 
-    draw_blank(win)
-    event.clearEvents()
+# -----------------------------------------------------------------------------
+# BREAK SCREEN  (saves data; shows space to continue, accepts q to quit)
+# -----------------------------------------------------------------------------
+def break_screen(win, tracker, disp, log_rows, log_file):
+    """
+    Shows a break screen. Saves data automatically.
+    Participant sees only the space-to-continue prompt.
+    Experimenter can press Q to save and quit.
+    Returns True to continue, False to quit.
+    """
+    save_csv(log_rows, log_file)
+    draw_text(win, "Take a short break.\n\nPress SPACE to continue.")
+    key = wait_keypress(win, keys=['space', 'q'])
+    if key == 'q':
+        tracker.close()
+        disp.close()
+        win.close()
+        core.quit()
 
 
 # -----------------------------------------------------------------------------
@@ -398,79 +437,39 @@ def main():
     tracker = EyeTracker(disp, trackertype="opengaze", logfile=et_log)
 
     # -- Training -------------------------------------------------------------
+    draw_text(win, "Training\n\nPress SPACE to begin.")
+    wait_keypress(win, keys=['space'])
     run_training(win)
 
-    # -- Post-training: continue or quit --------------------------------------
-    draw_text(win,
-              "Practice complete!\n\n"
-              "Press  C  to start the main experiment\n"
-              "Press  Q  to quit.")
-    key = wait_keypress(win, keys=['c', 'q'])
-    if key == 'q':
-        tracker.close()
-        disp.close()
-        win.close()
-        core.quit()
-
-    # -- Build trial lists ----------------------------------------------------
-    all_trials       = build_trial_list()
-    perception_trials = build_perception_list()
-    log_rows   = []
-    trial_num  = 1
-
-    # =========================================================================
-    # FIRST HALF  (trials 1-40)
-    # =========================================================================
-    draw_text(win, "Part 1 of 2\n\nPress SPACE to begin.")
+    # -- Experiment start -----------------------------------------------------
+    draw_text(win, "Experiment\n\nPress SPACE to begin.")
     wait_keypress(win, keys=['space'])
 
-    for trial_def in all_trials[:HALF]:
-        run_trial_sequence(win, tracker, trial_num, trial_def, log_rows)
-        trial_num += 1
+    # -- Imagery trials with breaks every BREAK_EVERY trials ------------------
+    log_rows  = []
+    trial_num = 1
+    total     = len(FIXED_IMAGERY_TRIALS)
 
-    # -- Mid-point save -------------------------------------------------------
-    save_csv(log_rows, log_file)
+    for chunk_start in range(0, total, BREAK_EVERY):
+        chunk = FIXED_IMAGERY_TRIALS[chunk_start:chunk_start + BREAK_EVERY]
+        for trial_def in chunk:
+            run_trial_sequence(win, tracker, trial_num, trial_def, log_rows)
+            trial_num += 1
 
-    # -- Mid-point prompt: continue or end ------------------------------------
-    draw_text(win,
-              f"Part 1 complete  ({HALF} of {HALF * 2} trials).\n"
-              "Your results have been saved.\n\n"
-              "Press  C  to continue to Part 2\n"
-              "Press  Q  to end the session now.")
-    key = wait_keypress(win, keys=['c', 'q'])
+        # Break after every chunk except the last
+        if chunk_start + BREAK_EVERY < total:
+            break_screen(win, tracker, disp, log_rows, log_file)
 
-    if key == 'q':
-        draw_text(win, "Session ended. Thank you!\n\nPress SPACE to exit.")
-        wait_keypress(win, keys=['space'])
-        tracker.close()
-        disp.close()
-        win.close()
-        core.quit()
-
-    # =========================================================================
-    # SECOND HALF  (trials 41-80)
-    # =========================================================================
-    draw_text(win, "Part 2 of 2\n\nPress SPACE to begin.")
-    wait_keypress(win, keys=['space'])
-
-    for trial_def in all_trials[HALF:]:
-        run_trial_sequence(win, tracker, trial_num, trial_def, log_rows)
-        trial_num += 1
-
-    # -- Save after imagery ---------------------------------------------------
+    # -- Save after imagery block ---------------------------------------------
     save_csv(log_rows, log_file)
 
     # =========================================================================
-    # PERCEPTION  (40 trials)
+    # PERCEPTION
     # =========================================================================
-    draw_text(win,
-              "Perception section\n\n"
-              "The procedure is the same, but after the cue\n"
-              "the corresponding image will be shown on screen.\n\n"
-              "Press SPACE to begin.")
+    draw_text(win, "Perception section\n\nPress SPACE to begin.")
     wait_keypress(win, keys=['space'])
 
-    for trial_def in perception_trials:
+    for trial_def in FIXED_PERCEPTION_TRIALS:
         run_trial_sequence(win, tracker, trial_num, trial_def,
                            log_rows, mode='perception')
         trial_num += 1
