@@ -44,6 +44,16 @@ import os
 import csv
 from datetime import datetime
 
+
+def _load_trials(filename):
+    path = os.path.join(os.path.dirname(__file__), filename)
+    with open(path, newline="") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    for row in rows:
+        row["img_for_gaze"] = int(row["img_for_gaze"])
+    return rows
+
 # -- Set BEFORE any pygaze imports --------------------------------------------
 os.environ["DISPTYPE"] = "psychopy"
 os.environ["TRACKERTYPE"] = "opengaze"
@@ -66,7 +76,8 @@ SCREEN_H    = 1080   # change on lab computer
 FULLSCREEN  = True
 BACKGROUND  = "#7f7f7f"
 FG_COLOR    = "white"
-POOL_DIR = os.path.join(os.path.dirname(__file__), "pool")
+POOL_DIR    = os.path.join(os.path.dirname(__file__), "pool")
+IMAGE_SCALE = 1.5
 
 # Timing (ms)
 T_START_FIX     = 1500   # fixation cross before first image
@@ -94,98 +105,9 @@ PERCEPTION_PER_CONDITION  = 4    # 16 perception trials total (2 cue=1 + 2 cue=2
 # -----------------------------------------------------------------------------
 # FIXED PSEUDORANDOM TRIAL ORDERS  (seed=42, same for every participant)
 # -----------------------------------------------------------------------------
-FIXED_IMAGERY_TRIALS = [
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
-]
-
-FIXED_TRAINING_TRIALS = [
-    {'condition_label': 'house_L_face_R_house1st', 'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
-    {'condition_label': 'house_R_face_L_house1st', 'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
-    {'condition_label': 'face_L_house_R_face1st',  'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
-    {'condition_label': 'face_R_house_L_face1st',  'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
-]
-
-FIXED_PERCEPTION_TRIALS = [
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 1, 'img_second': 'face_right.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 2, 'img_second': 'house_left.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 1, 'img_second': 'face_left.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
-    {'condition_label': 'house_L_face_R_house1st',  'img_first': 'house_left.png',  'img_for_gaze': 2, 'img_second': 'face_right.png'},
-    {'condition_label': 'house_R_face_L_house1st',  'img_first': 'house_right.png', 'img_for_gaze': 2, 'img_second': 'face_left.png'},
-    {'condition_label': 'face_R_house_L_face1st',   'img_first': 'face_right.png',  'img_for_gaze': 1, 'img_second': 'house_left.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 1, 'img_second': 'house_right.png'},
-    {'condition_label': 'face_L_house_R_face1st',   'img_first': 'face_left.png',   'img_for_gaze': 2, 'img_second': 'house_right.png'},
-]
+FIXED_IMAGERY_TRIALS    = _load_trials("imagery_trials.csv")
+FIXED_TRAINING_TRIALS   = _load_trials("training_trials.csv")
+FIXED_PERCEPTION_TRIALS = _load_trials("perception_trials.csv")
 
 # -----------------------------------------------------------------------------
 # HELPERS
@@ -228,6 +150,10 @@ def wait_keypress(win, keys=None):
 
 
 def draw_image(win, filename, size=None):
+    if size is None:
+        from PIL import Image as _PIL
+        w, h = _PIL.open(pool(filename)).size
+        size = (int(w * IMAGE_SCALE), int(h * IMAGE_SCALE))
     img = visual.ImageStim(win, image=pool(filename), size=size)
     img.draw()
     return win.flip()
@@ -244,19 +170,11 @@ def save_csv(log_rows, log_file):
 
 
 # -----------------------------------------------------------------------------
-# VIVIDNESS RATING
+# VIVIDNESS PLACEHOLDER
 # -----------------------------------------------------------------------------
-def get_vividness(win):
-    """Display vividness scale and wait for key 1-4. Returns int rating."""
-    draw_text(win,
-              "How vivid was your mental image?\n\n"
-              "1 = No image at all\n"
-              "2 = Vague / dim\n"
-              "3 = Moderately clear\n"
-              "4 = Perfectly clear and vivid",
-              height=28)
-    key = wait_keypress(win, keys=['1', '2', '3', '4'])
-    return int(key)
+def show_vividness_placeholder(win):
+    draw_text(win, "Vividness rating")
+    wait_ms(2000)
 
 
 # -----------------------------------------------------------------------------
@@ -333,15 +251,13 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
     if tracker:
         tracker.log(f"{tag}_EndStep7_at_{libtime.get_time()}")
 
-    # -- 8. Vividness rating (imagery only) --------------------------------------
-    if mode == 'perception':
-        vividness = None
-    else:
+    # -- 8. Vividness placeholder (imagery only, 2 s, no response) ---------------
+    if mode != 'perception':
         if tracker:
-            tracker.log(f"{tag}_StartVividnessRating")
-        vividness = get_vividness(win)
+            tracker.log(f"{tag}_StartVividnessPlaceholder")
+        show_vividness_placeholder(win)
         if tracker:
-            tracker.log(f"{tag}_VividnessRating_{vividness}")
+            tracker.log(f"{tag}_EndVividnessPlaceholder")
 
     # -- 9. ITI blank (1000 ms) -----------------------------------------------
     draw_blank(win)
@@ -357,8 +273,6 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
         tracker.log_var("img_second",            img2)
         tracker.log_var("ImgForGaze_1st_or_2nd", img_for_gaze)
         tracker.log_var("cued_image",            cued_image)
-        if vividness is not None:
-            tracker.log_var("vividness",         vividness)
 
     # -- CSV log (non-training trials only) -----------------------------------
     if not is_training:
@@ -370,11 +284,8 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
             "img_second":            img2,
             "ImgForGaze_1st_or_2nd": img_for_gaze,
             "cued_image":            cued_image,
-            "vividness":             vividness,
         }
         log_rows.append(row)
-
-    return vividness
 
 
 # -----------------------------------------------------------------------------
@@ -422,9 +333,12 @@ def main():
         except ValueError:
             print("Please enter a valid integer.")
 
+    results_dir = os.path.join(os.path.dirname(__file__), "results")
+    os.makedirs(results_dir, exist_ok=True)
+
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    log_file  = f"log_subj_{subject_nr}_{timestamp}.csv"
-    et_log    = f"gazepoint_data_subj_{subject_nr}_{timestamp}"
+    log_file  = os.path.join(results_dir, f"log_subj_{subject_nr}_{timestamp}.csv")
+    et_log    = os.path.join(results_dir, f"gazepoint_data_subj_{subject_nr}_{timestamp}")
 
     # -- Let PyGaze own the window (prevents double-window on startup) --------
     pygaze_settings.DISPSIZE   = (SCREEN_W, SCREEN_H)

@@ -14,3 +14,7 @@ gazepoint_data_*_log.txt
 # OS
 Thumbs.db
 .DS_Store
+
+# Preview scripts and images
+generate_preview*.py
+preview_*.png
