@@ -20,24 +20,24 @@ Eye tracker: Gazepoint (OpenGaze protocol).
 Design:
     Training:   4 trials (one per condition, no ET), before main experiment.
 
-    Imagery:    4 conditions x 16 trials = 64 trials.
+    Imagery:    4 blocks x 12 trials = 48 trials.
                 Each condition: one face + one house image.
-                Retrocue counterbalanced: 8 cue=1, 8 cue=2 per condition.
-                Break every 16 trials (3 breaks total within imagery block).
+                Break every 12 trials (3 breaks total within imagery block).
 
-    Perception: 4 conditions x 4 trials = 16 trials.
+    Perception: 12 trials.
                 Same as imagery but step 7 shows the cued image instead of blank.
 
 Trial sequence (timings):
-    1. Start fixation cross          1000 ms
-    2. Image 1                       1300 ms
+    1. Start fixation cross          1500 ms
+    2. Image 1                       2000 ms
     3. Blank (no cross)               500 ms
-    4. Image 2                       1300 ms
+    4. Image 2                       2000 ms
     5. Blank after image 2            500 ms
-    6. Retrocue number                140 ms
-    7. Blank gaze / cued image       2000 ms   (imagery / perception)
+    6. Retrocue number                300 ms
+    7. Blank gaze / cued image       3500 ms   (imagery / perception)
     8. Vividness rating (1-4)        until keypress
-    9. ITI blank                     1000 ms
+    9. Time-to-imagine rating (1-4)  until keypress
+   10. ITI blank                     1500 ms
 """
 
 import os
@@ -88,7 +88,7 @@ T_RETROCUE      = 300    # retrocue number
 T_BLANK_GAZE    = 3500   # blank gaze period
 T_ITI           = 1500   # inter-trial interval
 
-BREAK_EVERY = 16         # show a break screen after every N imagery trials
+BREAK_EVERY = 12         # show a break screen after every N imagery trials
 
 # -- Experiment design --------------------------------------------------------
 # Each entry: (img_first, img_second, condition_label)
@@ -98,9 +98,9 @@ CONDITIONS = [
     ("house_right.png", "face_left.png",   "house_R_face_L_house1st"),
     ("house_left.png",  "face_right.png",  "house_L_face_R_house1st"),
 ]
-TRIALS_PER_CONDITION      = 16   # 8 cue=1 + 8 cue=2
+TRIALS_PER_CONDITION      = 12   # 4 blocks x 12 = 48 imagery trials total
 N_TRAINING                = 4    # one per condition
-PERCEPTION_PER_CONDITION  = 4    # 16 perception trials total (2 cue=1 + 2 cue=2)
+PERCEPTION_TOTAL          = 12   # 12 perception trials total
 
 # -----------------------------------------------------------------------------
 # FIXED PSEUDORANDOM TRIAL ORDERS  (seed=42, same for every participant)
@@ -170,11 +170,29 @@ def save_csv(log_rows, log_file):
 
 
 # -----------------------------------------------------------------------------
-# VIVIDNESS PLACEHOLDER
+# RATINGS (keypress 1-4)
 # -----------------------------------------------------------------------------
-def show_vividness_placeholder(win):
-    draw_text(win, "Vividness rating")
-    wait_ms(2000)
+VIVIDNESS_PROMPT = (
+    "How vivid was your imagery?\n\n"
+    "1 - Not vivid at all\n"
+    "2 - Somewhat vivid\n"
+    "3 - Vivid\n"
+    "4 - Very vivid"
+)
+
+TIME_TO_IMAGINE_PROMPT = (
+    "When did the image come to mind?\n\n"
+    "1 - Immediately\n"
+    "2 - Before the half-time\n"
+    "3 - After the half-time\n"
+    "4 - Near the end"
+)
+
+
+def get_rating(win, prompt_text):
+    draw_text(win, prompt_text)
+    key = wait_keypress(win, keys=['1', '2', '3', '4'])
+    return int(key)
 
 
 # -----------------------------------------------------------------------------
@@ -251,15 +269,24 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
     if tracker:
         tracker.log(f"{tag}_EndStep7_at_{libtime.get_time()}")
 
-    # -- 8. Vividness placeholder (imagery only, 2 s, no response) ---------------
+    # -- 8. Vividness rating (imagery only, keypress 1-4) ----------------------
+    vividness = None
+    time_to_imagine = None
     if mode != 'perception':
         if tracker:
-            tracker.log(f"{tag}_StartVividnessPlaceholder")
-        show_vividness_placeholder(win)
+            tracker.log(f"{tag}_StartVividnessRating")
+        vividness = get_rating(win, VIVIDNESS_PROMPT)
         if tracker:
-            tracker.log(f"{tag}_EndVividnessPlaceholder")
+            tracker.log(f"{tag}_VividnessRating_{vividness}")
 
-    # -- 9. ITI blank (1000 ms) -----------------------------------------------
+        # -- 9. Time-to-imagine rating (keypress 1-4) -------------------------
+        if tracker:
+            tracker.log(f"{tag}_StartTimeToImagineRating")
+        time_to_imagine = get_rating(win, TIME_TO_IMAGINE_PROMPT)
+        if tracker:
+            tracker.log(f"{tag}_TimeToImagineRating_{time_to_imagine}")
+
+    # -- 10. ITI blank (1500 ms) ----------------------------------------------
     draw_blank(win)
     wait_ms(T_ITI)
 
@@ -273,6 +300,10 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
         tracker.log_var("img_second",            img2)
         tracker.log_var("ImgForGaze_1st_or_2nd", img_for_gaze)
         tracker.log_var("cued_image",            cued_image)
+        if vividness is not None:
+            tracker.log_var("vividness",         vividness)
+        if time_to_imagine is not None:
+            tracker.log_var("time_to_imagine",   time_to_imagine)
 
     # -- CSV log (non-training trials only) -----------------------------------
     if not is_training:
@@ -284,6 +315,8 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
             "img_second":            img2,
             "ImgForGaze_1st_or_2nd": img_for_gaze,
             "cued_image":            cued_image,
+            "vividness":             vividness,
+            "time_to_imagine":       time_to_imagine,
         }
         log_rows.append(row)
 
