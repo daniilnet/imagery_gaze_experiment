@@ -34,7 +34,8 @@ Trial sequence (timings):
     4. Image 2                       2000 ms
     5. Blank after image 2            500 ms
     6. Retrocue number                300 ms
-    7. Blank gaze / cued image       3500 ms   (imagery / perception)
+    7. Blank gaze                    3500 ms   (imagery)
+       Blank 200ms + cued image     3500 ms   (perception)
     8. Vividness rating (1-4)        until keypress
     9. Time-to-imagine rating (1-4)  until keypress
    10. ITI blank                     1500 ms
@@ -74,7 +75,7 @@ from pygaze import libtime
 SCREEN_W    = 1920
 SCREEN_H    = 1080   # change on lab computer
 FULLSCREEN  = True
-BACKGROUND  = "#7f7f7f"
+BACKGROUND  = "#000000"
 FG_COLOR    = "white"
 POOL_DIR    = os.path.join(os.path.dirname(__file__), "pool")
 IMAGE_SCALE = 1.5
@@ -258,6 +259,8 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
 
     # -- 7. Blank gaze (imagery) or cued image (perception) for 2000 ms -------
     if mode == 'perception':
+        draw_blank(win)
+        wait_ms(200)
         t0 = draw_image(win, cued_image)
         if tracker:
             tracker.log(f"{tag}_StartPerceptionImage_{cued_image}_at_{t0}")
