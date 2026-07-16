@@ -45,6 +45,12 @@ import os
 import csv
 from datetime import datetime
 
+# -----------------------------------------------------------------------------
+# DEV MODE SWITCH
+# -----------------------------------------------------------------------------
+without_tracker = 1   # 1 = run experiment without eye tracker connected (testing).
+                      # On-screen is identical to normal runtime; no ET/gaze data is logged.
+
 
 def _load_trials(filename):
     path = os.path.join(os.path.dirname(__file__), filename)
@@ -161,6 +167,8 @@ def draw_image(win, filename, size=None):
 
 
 def save_csv(log_rows, log_file):
+    if without_tracker:
+        return
     if not log_rows:
         return
     with open(log_file, "w", newline="") as f:
@@ -351,7 +359,8 @@ def break_screen(win, tracker, disp, log_rows, log_file):
     draw_text(win, "Take a short break.\n\nPress SPACE to continue.")
     key = wait_keypress(win, keys=['space', 'q'])
     if key == 'q':
-        tracker.close()
+        if tracker:
+            tracker.close()
         disp.close()
         win.close()
         core.quit()
@@ -384,7 +393,11 @@ def main():
 
     disp    = Display()
     win     = pygaze.expdisplay  # window PyGaze created, stored on the module
-    tracker = EyeTracker(disp, trackertype="opengaze", logfile=et_log)
+    if without_tracker:
+        tracker = None
+        print("without_tracker=1: running WITHOUT eye tracker, no ET data will be logged.")
+    else:
+        tracker = EyeTracker(disp, trackertype="opengaze", logfile=et_log)
 
     # -- Training -------------------------------------------------------------
     draw_text(win, "Training\n\nPress SPACE to begin.")
@@ -432,7 +445,8 @@ def main():
     wait_keypress(win, keys=['space'])
 
     # -- Cleanup --------------------------------------------------------------
-    tracker.close()
+    if tracker:
+        tracker.close()
     disp.close()
     win.close()
     core.quit()
