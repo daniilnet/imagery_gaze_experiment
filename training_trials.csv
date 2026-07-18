@@ -1,5 +1,7 @@
-condition_label,img_first,img_for_gaze,img_second
-house_L_face_R_house1st,house_left.png,2,face_right.png
-house_R_face_L_house1st,house_right.png,1,face_left.png
-face_L_house_R_face1st,face_left.png,1,house_right.png
-face_R_house_L_face1st,face_right.png,1,house_left.png
+block,trial_in_block,cue,cued_image
+1,1,F,face_right.png
+1,2,H,house_right.png
+1,3,H,house_right.png
+1,4,F,face_right.png
+1,5,H,house_right.png
+1,6,F,face_right.png

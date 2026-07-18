@@ -11,34 +11,40 @@ Dependencies:
 
 Folder structure expected:
     pool/
-        face_left.png       face_right.png
-        house_left.png      house_right.png
-        3blank.jpg          4mask.jpg
+        face_right.png      house_right.png
 
 Eye tracker: Gazepoint (OpenGaze protocol).
 
 Design:
-    Training:   4 trials (one per condition, no ET), before main experiment.
+    Only the "right" stimuli are used (face_right.png / house_right.png).
+    Trials are organized into blocks of 6. Each block is preceded by a
+    single, fixed-order presentation of both stimuli (face_right then
+    house_right) -- not randomized, not repeated within the block.
 
-    Imagery:    4 blocks x 12 trials = 48 trials.
-                Each condition: one face + one house image.
-                Break every 12 trials (3 breaks total within imagery block).
+    Training:   1 block (intro images + 6 practice trials, no ET, not logged).
 
-    Perception: 12 trials.
-                Same as imagery but step 7 shows the cued image instead of blank.
+    Imagery:    10 blocks x 6 trials = 60 trials.
+                Break screen after every 2 blocks (except after the last).
+
+    Perception: 2 blocks x 6 trials = 12 trials, run after all imagery blocks.
+                Same structure, but the cued image (matching the H/F cue) is
+                shown during the imagery period instead of a blank screen;
+                no vividness / time-to-imagine ratings are collected.
 
 Trial sequence (timings):
-    1. Start fixation cross          1500 ms
-    2. Image 1                       2000 ms
-    3. Blank (no cross)               500 ms
-    4. Image 2                       2000 ms
-    5. Blank after image 2            500 ms
-    6. Retrocue number                300 ms
-    7. Blank gaze                    3500 ms   (imagery)
-       Blank 200ms + cued image     3500 ms   (perception)
-    8. Vividness rating (1-4)        until keypress
-    9. Time-to-imagine rating (1-4)  until keypress
-   10. ITI blank                     1500 ms
+    1. ITI blank (start)              1000 ms
+    2. Fixation cross                  500 ms
+    3. H/F cue (center of screen)      300 ms
+    4. Blank imagery period           3000 ms   (imagery)
+       Cued image (house/face)        3000 ms   (perception)
+    5. Vividness rating (1-4)         until keypress   (imagery only)
+    6. Time-to-imagine rating (1-4)   until keypress   (imagery only)
+    7. ITI blank (end)                1000 ms
+
+Block intro (before each block's first trial):
+    face_right.png   2000 ms
+    blank             500 ms
+    house_right.png  2000 ms
 """
 
 import os
@@ -58,7 +64,8 @@ def _load_trials(filename):
         reader = csv.DictReader(f)
         rows = list(reader)
     for row in rows:
-        row["img_for_gaze"] = int(row["img_for_gaze"])
+        row["block"] = int(row["block"])
+        row["trial_in_block"] = int(row["trial_in_block"])
     return rows
 
 # -- Set BEFORE any pygaze imports --------------------------------------------
@@ -86,31 +93,25 @@ FG_COLOR    = "white"
 POOL_DIR    = os.path.join(os.path.dirname(__file__), "pool")
 IMAGE_SCALE = 1.5
 
+FACE_IMAGE  = "face_right.png"
+HOUSE_IMAGE = "house_right.png"
+
 # Timing (ms)
-T_START_FIX     = 1500   # fixation cross before first image
-T_IMG           = 2000   # each image on screen
-T_BETWEEN_BLANK = 500    # blank between images (no cross)
-T_POST_IMG2     = 500    # blank after image 2, replaces mask
-T_RETROCUE      = 300    # retrocue number
-T_BLANK_GAZE    = 3500   # blank gaze period
-T_ITI           = 1500   # inter-trial interval
+T_ITI           = 1000   # inter-trial interval, at both start and end of each trial
+T_FIXATION      = 1500    # fixation cross
+T_CUE           = 300    # H/F cue in center of screen
+T_IMAGERY_BLANK = 3000   # blank imagery period (imagery mode)
+T_PERCEPTION_IMG = 3000  # cued image display duration (perception mode)
+T_INTRO_IMG     = 3000   # each block-intro stimulus on screen
+T_INTRO_BLANK   = 500    # blank between the two block-intro stimuli
 
-BREAK_EVERY = 12         # show a break screen after every N imagery trials
-
-# -- Experiment design --------------------------------------------------------
-# Each entry: (img_first, img_second, condition_label)
-CONDITIONS = [
-    ("face_right.png",  "house_left.png",  "face_R_house_L_face1st"),
-    ("face_left.png",   "house_right.png", "face_L_house_R_face1st"),
-    ("house_right.png", "face_left.png",   "house_R_face_L_house1st"),
-    ("house_left.png",  "face_right.png",  "house_L_face_R_house1st"),
-]
-TRIALS_PER_CONDITION      = 12   # 4 blocks x 12 = 48 imagery trials total
-N_TRAINING                = 4    # one per condition
-PERCEPTION_TOTAL          = 12   # 12 perception trials total
+BLOCK_SIZE          = 6   # trials per block
+BREAK_EVERY_BLOCKS  = 2   # rest break after every N blocks (imagery only)
 
 # -----------------------------------------------------------------------------
-# FIXED PSEUDORANDOM TRIAL ORDERS  (seed=42, same for every participant)
+# FIXED PSEUDORANDOM TRIAL ORDERS (see generate_trial_csvs.py)
+# Same H/F cue sequence for every participant; counterbalanced 3H/3F per
+# block with no more than 2 identical cues in a row.
 # -----------------------------------------------------------------------------
 FIXED_IMAGERY_TRIALS    = _load_trials("imagery_trials.csv")
 FIXED_TRAINING_TRIALS   = _load_trials("training_trials.csv")
@@ -205,6 +206,24 @@ def get_rating(win, prompt_text):
 
 
 # -----------------------------------------------------------------------------
+# BLOCK INTRO (both stimuli shown once, fixed order, before each block)
+# -----------------------------------------------------------------------------
+def show_block_intro(win, tracker, tag):
+    t0 = draw_image(win, FACE_IMAGE)
+    if tracker:
+        tracker.log(f"{tag}_BlockIntro_{FACE_IMAGE}_at_{t0}")
+    wait_ms(T_INTRO_IMG)
+
+    draw_blank(win)
+    wait_ms(T_INTRO_BLANK)
+
+    t0 = draw_image(win, HOUSE_IMAGE)
+    if tracker:
+        tracker.log(f"{tag}_BlockIntro_{HOUSE_IMAGE}_at_{t0}")
+    wait_ms(T_INTRO_IMG)
+
+
+# -----------------------------------------------------------------------------
 # CORE TRIAL SEQUENCE
 # -----------------------------------------------------------------------------
 def run_trial_sequence(win, tracker, trial_num, trial_def,
@@ -212,75 +231,54 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
     """
     Runs one full trial.
     tracker=None  -> skips all ET calls (training).
-    mode='imagery'    -> step 7 is a blank gaze period.
-    mode='perception' -> step 7 shows the cued image.
-    Returns the vividness rating (int 1-5).
+    mode='imagery'    -> step 4 is a blank imagery period.
+    mode='perception' -> step 4 shows the cued image.
+    Returns nothing; appends a row to log_rows (unless is_training).
     """
-    img1            = trial_def["img_first"]
-    img2            = trial_def["img_second"]
-    img_for_gaze    = trial_def["img_for_gaze"]
-    condition_label = trial_def["condition_label"]
-    cued_image      = img1 if img_for_gaze == 1 else img2
-    tag             = "training" if is_training else f"{mode}_{trial_num}"
+    block          = trial_def["block"]
+    trial_in_block = trial_def["trial_in_block"]
+    cue            = trial_def["cue"]
+    cued_image     = trial_def["cued_image"]
+    tag            = "training" if is_training else f"{mode}_{trial_num}"
 
-    # -- 1. Start fixation cross (1000 ms) ------------------------------------
+    # -- 1. ITI blank, start (1000 ms) ----------------------------------------
+    draw_blank(win)
+    wait_ms(T_ITI)
+
     if tracker:
         tracker.start_recording()
+
+    # -- 2. Fixation cross (500 ms) -------------------------------------------
     t0_fix = draw_cross(win)
     if tracker:
         tracker.log(f"{tag}_StartFixation_at_{t0_fix}")
-    wait_ms(T_START_FIX)
+    wait_ms(T_FIXATION)
     if tracker:
         tracker.log(f"{tag}_EndFixation_at_{libtime.get_time()}")
 
-    # -- 2. Image 1 (2000 ms) -------------------------------------------------
-    t0 = draw_image(win, img1)
+    # -- 3. H/F cue in center of screen (300 ms) -------------------------------
+    t0 = draw_text(win, cue, height=60)
     if tracker:
-        tracker.log(f"{tag}_StartImage1_{img1}_at_{t0}")
-    wait_ms(T_IMG)
+        tracker.log(f"{tag}_StartCue_{cue}_at_{t0}")
+    wait_ms(T_CUE)
     if tracker:
-        tracker.log(f"{tag}_EndImage1_at_{libtime.get_time()}")
+        tracker.log(f"{tag}_EndCue_at_{libtime.get_time()}")
 
-    # -- 3. Blank between images (500 ms, no cross) ---------------------------
-    draw_blank(win)
-    wait_ms(T_BETWEEN_BLANK)
-
-    # -- 4. Image 2 (2000 ms) -------------------------------------------------
-    t0 = draw_image(win, img2)
-    if tracker:
-        tracker.log(f"{tag}_StartImage2_{img2}_at_{t0}")
-    wait_ms(T_IMG)
-    if tracker:
-        tracker.log(f"{tag}_EndImage2_at_{libtime.get_time()}")
-
-    # -- 5. Blank after image 2 (500 ms) --------------------------------------
-    draw_blank(win)
-    wait_ms(T_POST_IMG2)
-
-    # -- 6. Retrocue number (140 ms) ------------------------------------------
-    t0 = draw_text(win, str(img_for_gaze), height=24)
-    if tracker:
-        tracker.log(f"{tag}_StartRetroCue_{img_for_gaze}_at_{t0}")
-    wait_ms(T_RETROCUE)
-    if tracker:
-        tracker.log(f"{tag}_EndRetroCue_at_{libtime.get_time()}")
-
-    # -- 7. Blank gaze (imagery) or cued image (perception) for 2000 ms -------
+    # -- 4. Blank imagery period (imagery) or cued image (perception) ---------
     if mode == 'perception':
-        draw_blank(win)
-        wait_ms(200)
         t0 = draw_image(win, cued_image)
         if tracker:
             tracker.log(f"{tag}_StartPerceptionImage_{cued_image}_at_{t0}")
+        wait_ms(T_PERCEPTION_IMG)
     else:
         t0 = draw_blank(win)
         if tracker:
-            tracker.log(f"{tag}_StartBlankGaze_cued_{img_for_gaze}_at_{t0}")
-    wait_ms(T_BLANK_GAZE)
+            tracker.log(f"{tag}_StartImageryBlank_cued_{cue}_at_{t0}")
+        wait_ms(T_IMAGERY_BLANK)
     if tracker:
-        tracker.log(f"{tag}_EndStep7_at_{libtime.get_time()}")
+        tracker.log(f"{tag}_EndStep4_at_{libtime.get_time()}")
 
-    # -- 8. Vividness rating (imagery only, keypress 1-4) ----------------------
+    # -- 5-6. Ratings (imagery only, keypress 1-4) -----------------------------
     vividness = None
     time_to_imagine = None
     if mode != 'perception':
@@ -290,27 +288,25 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
         if tracker:
             tracker.log(f"{tag}_VividnessRating_{vividness}")
 
-        # -- 9. Time-to-imagine rating (keypress 1-4) -------------------------
         if tracker:
             tracker.log(f"{tag}_StartTimeToImagineRating")
         time_to_imagine = get_rating(win, TIME_TO_IMAGINE_PROMPT)
         if tracker:
             tracker.log(f"{tag}_TimeToImagineRating_{time_to_imagine}")
 
-    # -- 10. ITI blank (1500 ms) ----------------------------------------------
+    # -- 7. ITI blank, end (1000 ms) -------------------------------------------
     draw_blank(win)
     wait_ms(T_ITI)
 
     # -- ET: stop recording & log variables -----------------------------------
     if tracker:
         tracker.stop_recording()
-        tracker.log_var("phase",                 mode)
-        tracker.log_var("trial_num",             trial_num)
-        tracker.log_var("condition_label",       condition_label)
-        tracker.log_var("img_first",             img1)
-        tracker.log_var("img_second",            img2)
-        tracker.log_var("ImgForGaze_1st_or_2nd", img_for_gaze)
-        tracker.log_var("cued_image",            cued_image)
+        tracker.log_var("phase",           mode)
+        tracker.log_var("trial_num",       trial_num)
+        tracker.log_var("block",           block)
+        tracker.log_var("trial_in_block",  trial_in_block)
+        tracker.log_var("cue",             cue)
+        tracker.log_var("cued_image",      cued_image)
         if vividness is not None:
             tracker.log_var("vividness",         vividness)
         if time_to_imagine is not None:
@@ -319,27 +315,57 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
     # -- CSV log (non-training trials only) -----------------------------------
     if not is_training:
         row = {
-            "phase":                 mode,
-            "trial_num":             trial_num,
-            "condition_label":       condition_label,
-            "img_first":             img1,
-            "img_second":            img2,
-            "ImgForGaze_1st_or_2nd": img_for_gaze,
-            "cued_image":            cued_image,
-            "vividness":             vividness,
-            "time_to_imagine":       time_to_imagine,
+            "phase":           mode,
+            "trial_num":       trial_num,
+            "block":           block,
+            "trial_in_block":  trial_in_block,
+            "cue":             cue,
+            "cued_image":      cued_image,
+            "vividness":       vividness,
+            "time_to_imagine": time_to_imagine,
         }
         log_rows.append(row)
+
+
+# -----------------------------------------------------------------------------
+# RUN A PHASE (training / imagery / perception), block by block
+# -----------------------------------------------------------------------------
+def run_blocks(win, tracker, trials, log_rows, start_trial_num,
+               mode='imagery', is_training=False,
+               break_every_blocks=None, disp=None, log_file=None):
+    """
+    Runs `trials` (a flat list of trial_def dicts already tagged with
+    block/trial_in_block) in blocks of BLOCK_SIZE, showing the block intro
+    (both stimuli, fixed order) before each block.
+
+    If break_every_blocks is set, shows a break screen after every N blocks
+    (except after the final block).
+    """
+    trial_num = start_trial_num
+    blocks = [trials[i:i + BLOCK_SIZE] for i in range(0, len(trials), BLOCK_SIZE)]
+
+    for block_idx, block_trials in enumerate(blocks, start=1):
+        tag = "training" if is_training else f"{mode}_block{block_idx}"
+        show_block_intro(win, tracker, tag)
+
+        for trial_def in block_trials:
+            run_trial_sequence(win, tracker, trial_num, trial_def,
+                               log_rows, is_training=is_training, mode=mode)
+            trial_num += 1
+
+        if (break_every_blocks and block_idx % break_every_blocks == 0
+                and block_idx != len(blocks)):
+            break_screen(win, tracker, disp, log_rows, log_file)
+
+    return trial_num
 
 
 # -----------------------------------------------------------------------------
 # TRAINING SESSION
 # -----------------------------------------------------------------------------
 def run_training(win):
-    for i, trial_def in enumerate(FIXED_TRAINING_TRIALS, start=1):
-        run_trial_sequence(win, tracker=None, trial_num=i,
-                           trial_def=trial_def, log_rows=[],
-                           is_training=True)
+    run_blocks(win, tracker=None, trials=FIXED_TRAINING_TRIALS, log_rows=[],
+               start_trial_num=1, is_training=True)
     draw_blank(win)
     event.clearEvents()
     core.wait(0.5)
@@ -408,20 +434,12 @@ def main():
     draw_text(win, "Experiment\n\nPress SPACE to begin.")
     wait_keypress(win, keys=['space'])
 
-    # -- Imagery trials with breaks every BREAK_EVERY trials ------------------
+    # -- Imagery blocks, with breaks every BREAK_EVERY_BLOCKS blocks -----------
     log_rows  = []
-    trial_num = 1
-    total     = len(FIXED_IMAGERY_TRIALS)
-
-    for chunk_start in range(0, total, BREAK_EVERY):
-        chunk = FIXED_IMAGERY_TRIALS[chunk_start:chunk_start + BREAK_EVERY]
-        for trial_def in chunk:
-            run_trial_sequence(win, tracker, trial_num, trial_def, log_rows)
-            trial_num += 1
-
-        # Break after every chunk except the last
-        if chunk_start + BREAK_EVERY < total:
-            break_screen(win, tracker, disp, log_rows, log_file)
+    trial_num = run_blocks(win, tracker, FIXED_IMAGERY_TRIALS, log_rows,
+                           start_trial_num=1, mode='imagery',
+                           break_every_blocks=BREAK_EVERY_BLOCKS,
+                           disp=disp, log_file=log_file)
 
     # -- Save after imagery block ---------------------------------------------
     save_csv(log_rows, log_file)
@@ -432,10 +450,9 @@ def main():
     draw_text(win, "Perception section\n\nPress SPACE to begin.")
     wait_keypress(win, keys=['space'])
 
-    for trial_def in FIXED_PERCEPTION_TRIALS:
-        run_trial_sequence(win, tracker, trial_num, trial_def,
-                           log_rows, mode='perception')
-        trial_num += 1
+    run_blocks(win, tracker, FIXED_PERCEPTION_TRIALS, log_rows,
+              start_trial_num=trial_num, mode='perception',
+              break_every_blocks=None, disp=disp, log_file=log_file)
 
     # -- Final save (imagery + perception) ------------------------------------
     save_csv(log_rows, log_file)
