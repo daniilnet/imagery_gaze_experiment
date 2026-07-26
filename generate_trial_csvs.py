@@ -1,14 +1,22 @@
 """
 generate_trial_csvs.py
 
-Generates the fixed pseudorandom H/F cue sequences used by main.py:
-    training_trials.csv    (1 block  x 6 trials)
-    imagery_trials.csv     (10 blocks x 6 trials = 60 trials)
-    perception_trials.csv  (2 blocks x 6 trials = 12 trials)
+Generates the fixed pseudorandom trial sequences used by main.py (imagery
+task) and perception.py (perception task):
 
-Each block is counterbalanced (3x H, 3x F) and shuffled such that no
-cue repeats more than 2 times in a row, checked across block boundaries
-too (using the trailing cues of the previous block).
+    training_trials.csv              (4 trials  - imagery training)
+    imagery_trials.csv               (40 trials - imagery task)
+    perception_training_trials.csv   (4 trials  - perception training)
+    perception_trials.csv            (10 trials - perception task)
+
+Each trial has two independently counterbalanced factors:
+    - cue / cued_image            : H or F, 50/50 split, no more than
+                                     MAX_RUN identical cues in a row.
+    - first_image / second_image  : the order of the two-stimulus preview
+                                     shown at the start of every trial
+                                     (face_right.png then house_right.png,
+                                     or vice-versa), also 50/50 with the
+                                     same run constraint.
 
 Deterministic: re-running this script regenerates identical CSVs (fixed
 per-phase seeds), so every participant sees the same sequences.
@@ -17,11 +25,16 @@ import csv
 import os
 import random
 
-MAX_RUN = 2  # longest allowed run of identical consecutive cues
+MAX_RUN = 2  # longest allowed run of identical consecutive values
 
 CUE_TO_IMAGE = {
     "H": "house_right.png",
     "F": "face_right.png",
+}
+
+ORDER_TO_IMAGES = {
+    "FH": ("face_right.png", "house_right.png"),
+    "HF": ("house_right.png", "face_right.png"),
 }
 
 
@@ -38,36 +51,38 @@ def longest_run(seq):
     return longest
 
 
-def generate_sequence(n_blocks, seed, max_attempts_per_block=1000):
+def generate_balanced_sequence(n, seed, labels, max_attempts=100000):
+    """n values split evenly between the two labels, shuffled such that no
+    label repeats more than MAX_RUN times in a row."""
+    if n % 2 != 0:
+        raise ValueError(f"n must be even for an exact 50/50 split, got {n}")
+    half = n // 2
+    values = [labels[0]] * half + [labels[1]] * half
     rng = random.Random(seed)
-    sequence = []
-    for _ in range(n_blocks):
-        for _attempt in range(max_attempts_per_block):
-            block = ["H", "H", "H", "F", "F", "F"]
-            rng.shuffle(block)
-            tail = sequence[-MAX_RUN:] + block
-            if longest_run(tail) <= MAX_RUN:
-                sequence.extend(block)
-                break
-        else:
-            raise RuntimeError(f"Could not satisfy max-run constraint for block starting at trial {len(sequence) + 1}")
-    return sequence
+    for _ in range(max_attempts):
+        rng.shuffle(values)
+        if longest_run(values) <= MAX_RUN:
+            return values[:]
+    raise RuntimeError(f"Could not satisfy max-run constraint for n={n}, seed={seed}")
 
 
-def write_csv(filename, n_blocks, seed):
-    sequence = generate_sequence(n_blocks, seed)
+def write_csv(filename, n, cue_seed, order_seed):
+    cues   = generate_balanced_sequence(n, cue_seed,   ("H", "F"))
+    orders = generate_balanced_sequence(n, order_seed, ("FH", "HF"))
+
     path = os.path.join(os.path.dirname(__file__), filename)
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["block", "trial_in_block", "cue", "cued_image"])
-        for i, cue in enumerate(sequence):
-            block = i // 6 + 1
-            trial_in_block = i % 6 + 1
-            writer.writerow([block, trial_in_block, cue, CUE_TO_IMAGE[cue]])
-    print(f"Saved: {path}  ({n_blocks} blocks, {len(sequence)} trials, longest run = {longest_run(sequence)})")
+        writer.writerow(["trial_num", "cue", "cued_image", "first_image", "second_image"])
+        for i, (cue, order) in enumerate(zip(cues, orders), start=1):
+            first_image, second_image = ORDER_TO_IMAGES[order]
+            writer.writerow([i, cue, CUE_TO_IMAGE[cue], first_image, second_image])
+    print(f"Saved: {path}  ({n} trials, cue run <= {longest_run(cues)}, "
+          f"order run <= {longest_run(orders)})")
 
 
 if __name__ == "__main__":
-    write_csv("training_trials.csv",   n_blocks=1,  seed=42)
-    write_csv("imagery_trials.csv",    n_blocks=10, seed=43)
-    write_csv("perception_trials.csv", n_blocks=2,  seed=44)
+    write_csv("training_trials.csv",           n=4,  cue_seed=42, order_seed=142)
+    write_csv("imagery_trials.csv",             n=40, cue_seed=43, order_seed=143)
+    write_csv("perception_training_trials.csv", n=4,  cue_seed=44, order_seed=144)
+    write_csv("perception_trials.csv",          n=10, cue_seed=45, order_seed=145)

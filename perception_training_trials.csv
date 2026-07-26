@@ -1,5 +1,5 @@
 trial_num,cue,cued_image,first_image,second_image
-1,F,face_right.png,house_right.png,face_right.png
+1,H,house_right.png,house_right.png,face_right.png
 2,H,house_right.png,face_right.png,house_right.png
 3,F,face_right.png,face_right.png,house_right.png
-4,H,house_right.png,house_right.png,face_right.png
+4,F,face_right.png,house_right.png,face_right.png
