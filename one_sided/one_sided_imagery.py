@@ -1,9 +1,10 @@
 """
-main.py -- Imagery task
+one_sided_imagery.py -- Imagery task
 
 Run this as its own session. The perception task lives entirely in
-perception.py; the two scripts do not depend on each other. Shared setup,
-timing, and trial-running logic live in experiment_common.py.
+one_sided_perception.py; the two scripts do not depend on each other.
+Shared setup, timing, and trial-running logic live in
+one_sided_experiment_common.py.
 
 Design:
     Every trial opens with a two-stimulus preview (face_right.png and
@@ -12,19 +13,25 @@ Design:
     trials (see generate_trial_csvs.py).
 
     Training:  4 practice trials (no ET, not logged).
-    Imagery:   40 trials. Break screen after every 10 trials (except the
+    Imagery:   60 trials. Break screen after every 10 trials (except the
                last).
 
-See experiment_common.py for the full per-trial timing breakdown.
+See one_sided_experiment_common.py for the full per-trial timing breakdown.
 """
 
-from psychopy import core
-
-from experiment_common import (
-    load_trials, draw_text, wait_keypress, save_csv,
-    run_training, run_trials, setup_display_and_tracker,
-    prompt_subject_number, make_log_paths, wait_start_keypress,
+from one_sided_experiment_common import (
+    draw_text,
+    load_trials,
+    make_log_paths,
+    prompt_subject_number,
+    run_training,
+    run_trials,
+    save_csv,
+    setup_display_and_tracker,
+    wait_keypress,
+    wait_start_keypress,
 )
+from psychopy import core
 
 # -----------------------------------------------------------------------------
 # DEV MODE SWITCH

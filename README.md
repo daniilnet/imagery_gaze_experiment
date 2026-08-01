@@ -60,8 +60,24 @@ This reads `pyproject.toml`, creates `.venv`, and installs PsychoPy, PyGaze, and
 ---
 
 ## Running the experiment
+
+One-sided design (face/house, cued by an H/F letter):
 ```powershell
-uv run main.py
+uv run one_sided/one_sided_imagery.py
+uv run one_sided/one_sided_perception.py
+```
+
+Triangles design (fullscreen up/down stimuli, cued by an arrow):
+```powershell
+uv run triangles/triangles_imagery.py
+uv run triangles/triangles_perception.py
+```
+
+Multi-stim design (face/house, cued by an H/F letter, 4 identities per
+category counterbalanced across left/right renders):
+```powershell
+uv run multi_stim/multi_stim_imagery.py
+uv run multi_stim/multi_stim_perception.py
 ```
 
 You will be prompted to enter a subject number in the terminal before the experiment window opens.

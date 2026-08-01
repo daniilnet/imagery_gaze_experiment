@@ -1,9 +1,10 @@
 """
-experiment_common.py
+multi_stim_experiment_common.py
 
 Shared configuration, PsychoPy/PyGaze setup, and trial-running logic used by
-both main.py (imagery task) and perception.py (perception task). Neither
-task script imports the other -- they are run as separate sessions.
+both multi_stim_imagery.py (imagery task) and multi_stim_perception.py
+(perception task). Neither task script imports the other -- they are run as
+separate sessions.
 
 Dependencies:
     requires python 3.10.11 specifically!
@@ -13,22 +14,29 @@ Dependencies:
     pip install https://github.com/esdalmaijer/PyGaze/archive/refs/heads/master.zip
     (notice there are different 'pygaze' packages, download from the address above)
 
-Folder structure expected:
+Folder structure expected (relative to the project root, one level up from
+this file):
     pool/
-        face_right.png      house_right.png
+        face1_left.png   face1_right.png   ...   face4_left.png   face4_right.png
+        house1_left.png  house1_right.png  ...   house4_left.png  house4_right.png
+
+    Each face/house identity (1-4) has a "_left" and "_right" render (the
+    picture-frame content sits on the left or right side of the same room
+    scene). Which identity and which side is used for each stimulus on each
+    trial is fixed per-participant by the trial CSVs (see
+    generate_trial_csvs.py) and counterbalanced across the session.
 
 Eye tracker: Gazepoint (OpenGaze protocol).
 
 Trial sequence (timings):
-    0. Two-stimulus preview (every trial, counterbalanced order)
+    0. Two-stimulus preview (every trial, counterbalanced order and sides)
        first_image                     1500 ms
        blank                           1000 ms
        second_image                    1500 ms
     1. ITI blank (start)               1000 ms
     2. Fixation cross                  1500 ms
-    3. H/F cue (center of screen)       300 ms
+    3. H/F cue (center of screen)       300 ms   (imagery only)
     4. Blank imagery period            3000 ms   (imagery)
-       Blank cue-image gap              300 ms   (perception)
        Cued image (house/face)         3000 ms   (perception)
     5. Vividness rating (1-4)         until keypress   (imagery only)
     6. Time-to-imagine rating (1-4)   until keypress   (imagery only)
@@ -61,18 +69,15 @@ SCREEN_H    = 1080   # change on lab computer
 FULLSCREEN  = True
 BACKGROUND  = "#000000"
 FG_COLOR    = "white"
-POOL_DIR    = os.path.join(os.path.dirname(__file__), "pool")
+CUE_COLOR   = (180, 180, 180)  # light gray, rgb255
+POOL_DIR    = os.path.join(os.path.dirname(__file__), "..", "pool")
 IMAGE_SCALE = 1.5
-
-FACE_IMAGE  = "face_right.png"
-HOUSE_IMAGE = "house_right.png"
 
 # Timing (ms)
 T_ITI            = 1000   # inter-trial interval, at both start and end of each trial
 T_FIXATION       = 1500   # fixation cross
-T_CUE            = 300    # H/F cue in center of screen
+T_CUE            = 300    # H/F cue in center of screen (imagery mode only)
 T_IMAGERY_BLANK  = 3000   # blank imagery period (imagery mode)
-T_CUE_IMG_GAP    = 300    # blank gap between cue and cued image (perception mode only)
 T_PERCEPTION_IMG = 3000   # cued image display duration (perception mode)
 T_INTRO_IMG      = 1500   # each two-stimulus preview image on screen
 T_INTRO_BLANK    = 1000   # blank between the two preview images
@@ -88,6 +93,8 @@ def load_trials(filename):
         rows = list(reader)
     for row in rows:
         row["trial_num"] = int(row["trial_num"])
+        row["face_id"]   = int(row["face_id"])
+        row["house_id"]  = int(row["house_id"])
     return rows
 
 
@@ -113,8 +120,8 @@ def draw_blank(win):
     return win.flip()   # background color already set on the window
 
 
-def draw_text(win, text, height=30):
-    stim = visual.TextStim(win, text=text, color=FG_COLOR, height=height,
+def draw_text(win, text, height=30, color=FG_COLOR, color_space='rgb'):
+    stim = visual.TextStim(win, text=text, color=color, colorSpace=color_space, height=height,
                            wrapWidth=1400, alignText='center', anchorHoriz='center')
     stim.draw()
     return win.flip()
@@ -204,6 +211,13 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
     """
     cue          = trial_def["cue"]
     cued_image   = trial_def["cued_image"]
+    cued_side    = trial_def["cued_side"]
+    face_id      = trial_def["face_id"]
+    face_side    = trial_def["face_side"]
+    face_image   = trial_def["face_image"]
+    house_id     = trial_def["house_id"]
+    house_side   = trial_def["house_side"]
+    house_image  = trial_def["house_image"]
     first_image  = trial_def["first_image"]
     second_image = trial_def["second_image"]
     tag          = "training" if is_training else f"{mode}_{trial_num}"
@@ -226,19 +240,17 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
     if tracker:
         tracker.log(f"{tag}_EndFixation_at_{libtime.get_time()}")
 
-    # -- 3. H/F cue in center of screen (300 ms) -------------------------------
-    t0 = draw_text(win, cue, height=60)
-    if tracker:
-        tracker.log(f"{tag}_StartCue_{cue}_at_{t0}")
-    wait_ms(T_CUE)
-    if tracker:
-        tracker.log(f"{tag}_EndCue_at_{libtime.get_time()}")
+    # -- 3. H/F cue in center of screen (300 ms) -- imagery only ---------------
+    if mode != 'perception':
+        t0 = draw_text(win, cue, height=60, color=CUE_COLOR, color_space='rgb255')
+        if tracker:
+            tracker.log(f"{tag}_StartCue_{cue}_at_{t0}")
+        wait_ms(T_CUE)
+        if tracker:
+            tracker.log(f"{tag}_EndCue_at_{libtime.get_time()}")
 
     # -- 4. Blank imagery period (imagery) or cued image (perception) ---------
     if mode == 'perception':
-        draw_blank(win)
-        wait_ms(T_CUE_IMG_GAP)
-
         t0 = draw_image(win, cued_image)
         if tracker:
             tracker.log(f"{tag}_StartPerceptionImage_{cued_image}_at_{t0}")
@@ -278,6 +290,13 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
         tracker.log_var("trial_num",    trial_num)
         tracker.log_var("cue",          cue)
         tracker.log_var("cued_image",   cued_image)
+        tracker.log_var("cued_side",    cued_side)
+        tracker.log_var("face_id",      face_id)
+        tracker.log_var("face_side",    face_side)
+        tracker.log_var("face_image",   face_image)
+        tracker.log_var("house_id",     house_id)
+        tracker.log_var("house_side",   house_side)
+        tracker.log_var("house_image",  house_image)
         tracker.log_var("first_image",  first_image)
         tracker.log_var("second_image", second_image)
         if vividness is not None:
@@ -292,6 +311,13 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
             "trial_num":       trial_num,
             "cue":             cue,
             "cued_image":      cued_image,
+            "cued_side":       cued_side,
+            "face_id":         face_id,
+            "face_side":       face_side,
+            "face_image":      face_image,
+            "house_id":        house_id,
+            "house_side":      house_side,
+            "house_image":     house_image,
             "first_image":     first_image,
             "second_image":    second_image,
             "vividness":       vividness,
@@ -407,7 +433,7 @@ def prompt_subject_number(without_tracker=False):
 
 
 def make_log_paths(task_name, subject_nr):
-    results_dir = os.path.join(os.path.dirname(__file__), "results")
+    results_dir = os.path.join(os.path.dirname(__file__), "..", "results")
     os.makedirs(results_dir, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     log_file = os.path.join(results_dir, f"log_{task_name}_subj_{subject_nr}_{timestamp}.csv")
@@ -423,7 +449,7 @@ def setup_display_and_tracker(without_tracker, et_log):
     pygaze_settings.DISPSIZE   = (SCREEN_W, SCREEN_H)
     pygaze_settings.SCREENNR   = 0
     pygaze_settings.FULLSCREEN = FULLSCREEN
-    pygaze_settings.BGCOLOUR   = (127, 127, 127)  # standard gray
+    pygaze_settings.BGC        = (0, 0, 0)  # pure black
 
     disp = Display()
     win  = pygaze.expdisplay  # window PyGaze created, stored on the module

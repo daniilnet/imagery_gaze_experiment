@@ -1,11 +1,11 @@
 """
 generate_trial_csvs.py
 
-Generates the fixed pseudorandom trial sequences used by main.py (imagery
-task) and perception.py (perception task):
+Generates the fixed pseudorandom trial sequences used by one_sided_imagery.py
+(imagery task) and one_sided_perception.py (perception task):
 
     training_trials.csv              (4 trials  - imagery training)
-    imagery_trials.csv               (40 trials - imagery task)
+    imagery_trials.csv               (60 trials - imagery task)
     perception_training_trials.csv   (4 trials  - perception training)
     perception_trials.csv            (10 trials - perception task)
 
@@ -51,11 +51,10 @@ def longest_run(seq):
     return longest
 
 
-def generate_balanced_sequence(n, seed, labels, max_attempts=100000):
-    """n values split evenly between the two labels, shuffled such that no
-    label repeats more than MAX_RUN times in a row."""
-    if n % 2 != 0:
-        raise ValueError(f"n must be even for an exact 50/50 split, got {n}")
+def _shuffle_balanced_sequence(n, seed, labels, max_attempts=100000):
+    """Original shuffle-and-reject generator, kept as the primary path so
+    already-generated CSVs (already run with real participants) regenerate
+    byte-for-byte identical output."""
     half = n // 2
     values = [labels[0]] * half + [labels[1]] * half
     rng = random.Random(seed)
@@ -63,7 +62,64 @@ def generate_balanced_sequence(n, seed, labels, max_attempts=100000):
         rng.shuffle(values)
         if longest_run(values) <= MAX_RUN:
             return values[:]
+    return None
+
+
+def _construct_balanced_sequence(n, seed, labels, max_attempts=1000):
+    """Fallback generator: builds the sequence directly from randomized
+    runs of length 1-2 (interleaved between labels) instead of shuffling
+    and rejecting. For a strict 50/50 split, the odds of a random
+    full-sequence shuffle satisfying MAX_RUN=2 collapse combinatorially as
+    n grows (already near-zero by n=60), so shuffle-and-reject stops
+    finding a match within any reasonable attempt budget."""
+    half = n // 2
+    rng = random.Random(seed)
+
+    def make_runs(total):
+        runs = []
+        remaining = total
+        while remaining > 0:
+            size = rng.choice((1, 2)) if remaining > 1 else 1
+            runs.append(size)
+            remaining -= size
+        return runs
+
+    for _ in range(max_attempts):
+        runs_a = make_runs(half)
+        runs_b = make_runs(half)
+        if abs(len(runs_a) - len(runs_b)) > 1:
+            continue
+        rng.shuffle(runs_a)
+        rng.shuffle(runs_b)
+        if rng.random() < 0.5:
+            first, first_label, second, second_label = runs_a, labels[0], runs_b, labels[1]
+        else:
+            first, first_label, second, second_label = runs_b, labels[1], runs_a, labels[0]
+
+        values = []
+        i = j = 0
+        while i < len(first) or j < len(second):
+            if i < len(first):
+                values.extend([first_label] * first[i])
+                i += 1
+            if j < len(second):
+                values.extend([second_label] * second[j])
+                j += 1
+
+        if len(values) == n and longest_run(values) <= MAX_RUN:
+            return values
     raise RuntimeError(f"Could not satisfy max-run constraint for n={n}, seed={seed}")
+
+
+def generate_balanced_sequence(n, seed, labels):
+    """n values split evenly between the two labels, such that no label
+    repeats more than MAX_RUN times in a row."""
+    if n % 2 != 0:
+        raise ValueError(f"n must be even for an exact 50/50 split, got {n}")
+    result = _shuffle_balanced_sequence(n, seed, labels)
+    if result is not None:
+        return result
+    return _construct_balanced_sequence(n, seed, labels)
 
 
 def write_csv(filename, n, cue_seed, order_seed):
@@ -83,6 +139,6 @@ def write_csv(filename, n, cue_seed, order_seed):
 
 if __name__ == "__main__":
     write_csv("training_trials.csv",           n=4,  cue_seed=42, order_seed=142)
-    write_csv("imagery_trials.csv",             n=40, cue_seed=43, order_seed=143)
+    write_csv("imagery_trials.csv",             n=60, cue_seed=43, order_seed=143)
     write_csv("perception_training_trials.csv", n=4,  cue_seed=44, order_seed=144)
     write_csv("perception_trials.csv",          n=10, cue_seed=45, order_seed=145)

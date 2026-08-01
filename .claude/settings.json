@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/danii/AppData/Local/Programs/Python/Python310/lib/site-packages/pygaze/**)",
+      "Bash(python -c ' *)",
+      "Bash(cat \"/c/Users/danii/AppData/Local/Programs/Python/Python310/lib/site-packages/pygaze/__init__.py\")",
+      "Bash(python generate_trial_csvs.py)",
+      "Bash(rm -rf \"/c/imagery_gaze_experiment/triangles/__pycache__\")",
+      "Bash(python3 -c ' *)",
+      "Bash(py -3 --version)"
+    ]
+  }
+}
