@@ -7,7 +7,11 @@
       "Bash(python generate_trial_csvs.py)",
       "Bash(rm -rf \"/c/imagery_gaze_experiment/triangles/__pycache__\")",
       "Bash(python3 -c ' *)",
-      "Bash(py -3 --version)"
+      "Bash(py -3 --version)",
+      "Bash(python3 generate_trial_csvs.py)",
+      "Bash(python -m py_compile center_screen/center_screen_experiment_common.py center_screen/center_screen_imagery.py center_screen/center_screen_perception.py center_screen/generate_trial_csvs.py)",
+      "Bash(python -c \"from PIL import Image; print\\('face_center', Image.open\\('pool/face_center.png'\\).size\\); print\\('house_center', Image.open\\('pool/house_center.png'\\).size\\)\")",
+      "Bash(python -m py_compile center_screen/center_screen_experiment_common.py)"
     ]
   }
 }

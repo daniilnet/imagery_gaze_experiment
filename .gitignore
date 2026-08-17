@@ -11,6 +11,9 @@ gazepoint_data_*_log.txt
 # PyCharm
 .idea/
 
+# Claude Code
+.claude/
+
 # OS
 Thumbs.db
 .DS_Store

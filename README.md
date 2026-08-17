@@ -80,6 +80,14 @@ uv run multi_stim/multi_stim_imagery.py
 uv run multi_stim/multi_stim_perception.py
 ```
 
+Center-screen design (face/house, cued by an H/F letter, stimuli always
+shown in the center of the screen -- no left/right logic; only presentation
+order and cuing order are counterbalanced):
+```powershell
+uv run center_screen/center_screen_imagery.py
+uv run center_screen/center_screen_perception.py
+```
+
 You will be prompted to enter a subject number in the terminal before the experiment window opens.
 
 ---

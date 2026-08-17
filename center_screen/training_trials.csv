@@ -1,0 +1,5 @@
+trial_num,cue,cued_image,first_image,second_image
+1,F,face_center.png,house_center.png,face_center.png
+2,H,house_center.png,face_center.png,house_center.png
+3,F,face_center.png,face_center.png,house_center.png
+4,H,house_center.png,house_center.png,face_center.png
