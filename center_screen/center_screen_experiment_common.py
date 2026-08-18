@@ -76,7 +76,6 @@ from pygaze.eyetracker import EyeTracker
 SCREEN_W    = 1920
 SCREEN_H    = 1080   # change on lab computer
 FULLSCREEN  = True
-BACKGROUND  = "#000000"
 FG_COLOR    = "white"
 CUE_COLOR   = (180, 180, 180)  # light gray, rgb255
 POOL_DIR    = os.path.join(os.path.dirname(__file__), "..", "pool")
@@ -438,7 +437,7 @@ def setup_display_and_tracker(without_tracker, et_log):
     pygaze_settings.DISPSIZE   = (SCREEN_W, SCREEN_H)
     pygaze_settings.SCREENNR   = 0
     pygaze_settings.FULLSCREEN = FULLSCREEN
-    pygaze_settings.BGC        = (0, 0, 0)  # pure black
+    pygaze_settings.BGC        = (70, 70, 70)  # dark gray
 
     disp = Display()
     win  = pygaze.expdisplay  # window PyGaze created, stored on the module

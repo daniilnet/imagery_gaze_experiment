@@ -45,7 +45,21 @@ Trial sequence (timings):
 
 import os
 import csv
+import ctypes
 from datetime import datetime
+
+# -- Make this process DPI-aware BEFORE any window is created -----------------
+# Without this, Windows display scaling (e.g. 125%/150% on a laptop) reports a
+# smaller virtual resolution to the process than the panel's real pixel size,
+# so the hardcoded SCREEN_W/SCREEN_H below no longer matches the window
+# PsychoPy actually creates, and stimuli render far larger than intended.
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)  # per-monitor DPI aware
+except (AttributeError, OSError):
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except (AttributeError, OSError):
+        pass
 
 # -- Set BEFORE any pygaze imports --------------------------------------------
 os.environ["DISPTYPE"] = "psychopy"
@@ -67,7 +81,6 @@ from pygaze import libtime
 SCREEN_W    = 1920
 SCREEN_H    = 1080   # change on lab computer
 FULLSCREEN  = True
-BACKGROUND  = "#000000"
 FG_COLOR    = "white"
 CUE_COLOR   = (180, 180, 180)  # light gray, rgb255
 POOL_DIR    = os.path.join(os.path.dirname(__file__), "..", "pool")
