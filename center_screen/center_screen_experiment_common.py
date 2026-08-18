@@ -1,47 +1,6 @@
-"""
-center_screen_experiment_common.py
-
-Shared configuration, PsychoPy/PyGaze setup, and trial-running logic used by
-both center_screen_imagery.py (imagery task) and center_screen_perception.py
-(perception task). Neither task script imports the other -- they are run as
-separate sessions.
-
-Dependencies:
-    requires python 3.10.11 specifically!
-    downloaded from https://www.python.org/downloads/windows/
-
-    pip install psychopy lxml pygame
-    pip install https://github.com/esdalmaijer/PyGaze/archive/refs/heads/master.zip
-    (notice there are different 'pygaze' packages, download from the address above)
-
-Folder structure expected (relative to the project root, one level up from
-this file):
-    pool/
-        face_center.png      house_center.png
-
-Stimuli are shown in the center of the screen -- there is no left/right
-placement logic at all in this design (unlike multi_stim).
-
-Eye tracker: Gazepoint (OpenGaze protocol).
-
-Trial sequence (timings):
-    0. Two-stimulus preview (every trial, counterbalanced order)
-       first_image                     1500 ms
-       blank                           1000 ms
-       second_image                    1500 ms
-    1. ITI blank (start)               1000 ms
-    2. Fixation cross                  1500 ms
-    3. H/F cue (center of screen)       300 ms   (imagery only)
-    4. Blank imagery period            3000 ms   (imagery)
-       Cued image (house/face)         3000 ms   (perception)
-    5. Vividness rating (1-4)         until keypress   (imagery only)
-    6. Time-to-imagine rating (1-4)   until keypress   (imagery only)
-    7. ITI blank (end)                 1000 ms
-"""
-
-import os
 import csv
 import ctypes
+import os
 from datetime import datetime
 
 # -- Make this process DPI-aware BEFORE any window is created -----------------
@@ -86,8 +45,8 @@ HOUSE_IMAGE = "house_center.png"
 
 # Timing (ms)
 T_ITI            = 1000   # inter-trial interval, at both start and end of each trial
-T_FIXATION       = 1500   # fixation cross
-T_CUE            = 300    # H/F cue in center of screen (imagery mode only)
+T_PRECUE_BLANK   = 250    # blank between the trial-intro preview and the H/F cue
+T_CUE            = 500    # H/F cue in center of screen (imagery mode only)
 T_IMAGERY_BLANK  = 3000   # blank imagery period (imagery mode)
 T_PERCEPTION_IMG = 3000   # cued image display duration (perception mode)
 T_INTRO_IMG      = 1500   # each two-stimulus preview image on screen
@@ -116,13 +75,6 @@ def pool(filename):
 
 def wait_ms(ms):
     core.wait(ms / 1000.0, hogCPUperiod=ms / 1000.0)
-
-
-def draw_cross(win):
-    v = visual.Line(win, start=(0, -16), end=(0, 16), color=FG_COLOR, colorSpace='rgb', lineWidth=1)
-    h = visual.Line(win, start=(-16, 0), end=(16, 0), color=FG_COLOR, colorSpace='rgb', lineWidth=1)
-    v.draw(); h.draw()
-    return win.flip()
 
 
 def draw_blank(win):
@@ -173,11 +125,13 @@ def save_csv(log_rows, log_file, without_tracker):
 # RATINGS (keypress 1-4)
 # -----------------------------------------------------------------------------
 VIVIDNESS_PROMPT = (
-    "How vivid was your imagery?"
+    "How vivid?\n" 
+    "Least (1) - Most (4)"
 )
 
 TIME_TO_IMAGINE_PROMPT = (
-    "When did the image come to mind?"
+    "How fast?\n"
+    "Slow (1) - Fast (4)"
 )
 
 
@@ -234,17 +188,17 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
     if tracker:
         tracker.start_recording()
 
-    # -- 2. Fixation cross (1500 ms) -------------------------------------------
-    t0_fix = draw_cross(win)
+    # -- 2. Blank, pre-cue (500 ms) --------------------------------------------
+    t0_blank = draw_blank(win)
     if tracker:
-        tracker.log(f"{tag}_StartFixation_at_{t0_fix}")
-    wait_ms(T_FIXATION)
+        tracker.log(f"{tag}_StartPrecueBlank_at_{t0_blank}")
+    wait_ms(T_PRECUE_BLANK)
     if tracker:
-        tracker.log(f"{tag}_EndFixation_at_{libtime.get_time()}")
+        tracker.log(f"{tag}_EndPrecueBlank_at_{libtime.get_time()}")
 
     # -- 3. H/F cue in center of screen (300 ms) -- imagery only ---------------
     if mode != 'perception':
-        t0 = draw_text(win, cue, height=60, color=CUE_COLOR, color_space='rgb255')
+        t0 = draw_text(win, cue, height=40, color=CUE_COLOR, color_space='rgb255')
         if tracker:
             tracker.log(f"{tag}_StartCue_{cue}_at_{t0}")
         wait_ms(T_CUE)
