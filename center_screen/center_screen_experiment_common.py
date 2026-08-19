@@ -43,12 +43,20 @@ IMAGE_SCALE = 0.3
 FACE_IMAGE  = "face_center.png"
 HOUSE_IMAGE = "house_center.png"
 
+# Per-image vertical nudge (pix, +up/-down) applied on top of screen-center
+# positioning -- lets the face/house be fine-tuned independently since their
+# "visual center of mass" differs from their pixel-center.
+IMAGE_Y_OFFSET = {
+    FACE_IMAGE:  -20,  # move down
+    HOUSE_IMAGE:  20,  # move up
+}
+
 # Timing (ms)
 T_ITI            = 1000   # inter-trial interval, at both start and end of each trial
 T_PRECUE_BLANK   = 250    # blank between the trial-intro preview and the H/F cue
-T_CUE            = 500    # H/F cue in center of screen (imagery mode only)
-T_IMAGERY_BLANK  = 3000   # blank imagery period (imagery mode)
-T_PERCEPTION_IMG = 3000   # cued image display duration (perception mode)
+T_CUE            = 300    # H/F cue in center of screen (imagery mode only)
+T_IMAGERY_BLANK  = 5000   # blank imagery period (imagery mode)
+T_PERCEPTION_IMG = 5000   # cued image display duration (perception mode)
 T_INTRO_IMG      = 1500   # each two-stimulus preview image on screen
 T_INTRO_BLANK    = 1000   # blank between the two preview images
 
@@ -104,7 +112,8 @@ def draw_image(win, filename, size=None):
         from PIL import Image as _PIL
         w, h = _PIL.open(pool(filename)).size
         size = (int(w * IMAGE_SCALE), int(h * IMAGE_SCALE))
-    img = visual.ImageStim(win, image=pool(filename), size=size)
+    pos = (0, IMAGE_Y_OFFSET.get(filename, 0))
+    img = visual.ImageStim(win, image=pool(filename), size=size, pos=pos)
     img.draw()
     return win.flip()
 

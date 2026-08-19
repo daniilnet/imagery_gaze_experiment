@@ -19,5 +19,4 @@ Thumbs.db
 .DS_Store
 
 # Preview scripts and images
-generate_preview*.py
-preview_*.png
+preview_generation/
