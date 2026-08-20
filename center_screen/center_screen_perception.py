@@ -18,12 +18,10 @@ Design:
 See center_screen_experiment_common.py for the full per-trial timing breakdown.
 """
 
-from psychopy import core
-
 from center_screen_experiment_common import (
     load_trials, draw_text, wait_keypress, save_csv,
     run_trials, setup_display_and_tracker,
-    prompt_subject_number, make_log_paths,
+    prompt_subject_number, make_log_paths, quit_and_save,
 )
 
 # -----------------------------------------------------------------------------
@@ -63,12 +61,10 @@ def main():
     draw_text(win, "Experiment complete!  Thank you.\n\nPress SPACE to exit.")
     wait_keypress(win, keys=['space'])
 
-    # -- Cleanup --------------------------------------------------------------
-    if tracker:
-        tracker.close()
-    disp.close()
-    win.close()
-    core.quit()
+    # Cleanup -- quit_and_save() closes the display exactly once (disp and win
+    # are the same PsychoPy window) and always closes the tracker, which is
+    # what lets OpenGaze's non-daemon threads exit.
+    quit_and_save(win, tracker, disp, log_rows, log_file, without_tracker)
 
 
 if __name__ == "__main__":

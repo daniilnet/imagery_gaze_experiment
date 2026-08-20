@@ -113,7 +113,13 @@ def pool(filename):
 
 
 def wait_ms(ms):
-    core.wait(ms / 1000.0, hogCPUperiod=ms / 1000.0)
+    # Hog the CPU only for the last 200 ms, as PsychoPy recommends. Hogging the
+    # whole interval spins core.wait's tight loop (which re-parses the pyglet
+    # version and pumps the window event queue on every pass) while holding the
+    # GIL, starving the OpenGaze client's background socket threads -- and those
+    # threads are what read samples off the tracker and queue them for the gaze
+    # file, so starving them costs samples.
+    core.wait(ms / 1000.0, hogCPUperiod=0.2)
 
 
 def draw_cross(win):
@@ -281,11 +287,14 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
 
     # -- 7. ITI blank, end (1000 ms) -------------------------------------------
     draw_blank(win)
-    wait_ms(T_ITI)
 
-    # -- ET: stop recording & log variables -----------------------------------
+    # -- ET: log trial variables, THEN stop recording -------------------------
+    # log_var() -> tracker.log() -> OpenGaze "SET USER_DATA", which only reaches
+    # the gaze file via the sample stream; libopengaze.log() also skips the
+    # tracker entirely once self.recording is False. Logging after
+    # stop_recording() therefore drops every variable silently, so do it here,
+    # while the trailing ITI blank is up and recording is still running.
     if tracker:
-        tracker.stop_recording()
         tracker.log_var("phase",        mode)
         tracker.log_var("trial_num",    trial_num)
         tracker.log_var("cue",          cue)
@@ -296,6 +305,11 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
             tracker.log_var("vividness",         vividness)
         if time_to_imagine is not None:
             tracker.log_var("time_to_imagine",   time_to_imagine)
+
+    wait_ms(T_ITI)
+
+    if tracker:
+        tracker.stop_recording()
 
     # -- CSV log (non-training trials only) -----------------------------------
     if not is_training:

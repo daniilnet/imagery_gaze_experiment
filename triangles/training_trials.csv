@@ -1,5 +1,0 @@
-trial_num,cue,cued_image,first_image,second_image
-1,↓,down.png,down.png,up.png
-2,↑,up.png,up.png,down.png
-3,↓,down.png,up.png,down.png
-4,↑,up.png,down.png,up.png

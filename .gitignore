@@ -4,7 +4,7 @@ __pycache__/
 *.pyo
 
 # Subject data
-log_subj_*.csv
+log_*subj_*.csv
 gazepoint_data_*.tsv
 gazepoint_data_*_log.txt
 
