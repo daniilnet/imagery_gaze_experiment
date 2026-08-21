@@ -17,13 +17,17 @@ Design:
 See one_sided_experiment_common.py for the full per-trial timing breakdown.
 """
 
-from psychopy import core
-
 from one_sided_experiment_common import (
-    load_trials, draw_text, wait_keypress, save_csv,
-    run_trials, setup_display_and_tracker,
-    prompt_subject_number, make_log_paths,
+    draw_text,
+    load_trials,
+    make_log_paths,
+    prompt_subject_number,
+    run_trials,
+    save_csv,
+    setup_display_and_tracker,
+    wait_keypress,
 )
+from psychopy import core
 
 # -----------------------------------------------------------------------------
 # DEV MODE SWITCH

@@ -43,8 +43,8 @@ CUES        = ("F", "H")   # every cue letter that can appear in a trial CSV
 # positioning -- lets the face/house be fine-tuned independently since their
 # "visual center of mass" differs from their pixel-center.
 IMAGE_Y_OFFSET = {
-    FACE_IMAGE:  -20,  # move down
-    HOUSE_IMAGE:  20,  # move up
+    FACE_IMAGE:  -20,  # move down (px)
+    HOUSE_IMAGE:  20,  # move up (px)
 }
 
 # -----------------------------------------------------------------------------
@@ -74,8 +74,8 @@ def flip_time_ms(t_flip):
 T_ITI            = 1000   # inter-trial interval, at both start and end of each trial
 T_PRECUE_BLANK   = 250    # blank between the trial-intro preview and the H/F cue
 T_CUE            = 300    # H/F cue in center of screen (imagery mode only)
-T_IMAGERY_BLANK  = 5000   # blank imagery period (imagery mode)
-T_PERCEPTION_IMG = 5000   # cued image display duration (perception mode)
+T_IMAGERY_BLANK  = 4000   # blank imagery period (imagery mode)
+T_PERCEPTION_IMG = 4000   # cued image display duration (perception mode)
 T_INTRO_IMG      = 1500   # each two-stimulus preview image on screen
 T_INTRO_BLANK    = 1000   # blank between the two preview images
 
@@ -432,13 +432,13 @@ def quit_and_save(win, tracker, disp, log_rows, log_file, without_tracker):
     if log_rows is not None and log_file is not None:
         try:
             save_csv(log_rows, log_file, without_tracker)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 -- shutdown guard, must not skip the remaining steps
             print(f"Warning: could not save the behavioural log: {exc}")
 
     if tracker:
         try:
             tracker.close()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 -- shutdown guard, must not skip the remaining steps
             print(f"Warning: tracker.close() failed: {exc}")
 
     # pygaze's Display wraps pygaze.expdisplay, which *is* `win` -- so
@@ -450,7 +450,7 @@ def quit_and_save(win, tracker, disp, log_rows, log_file, without_tracker):
             disp.close()
         elif win is not None:
             win.close()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 -- shutdown guard, must not skip core.quit() below
         print(f"Warning: display close failed: {exc}")
 
     core.quit()
@@ -525,7 +525,7 @@ def prompt_subject_number(without_tracker=False):
 def make_log_paths(task_name, subject_nr):
     results_dir = os.path.join(os.path.dirname(__file__), "..", "results")
     os.makedirs(results_dir, exist_ok=True)
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')  # noqa: DTZ005 -- local wall-clock time for a human-readable filename
     log_file = os.path.join(results_dir, f"log_{task_name}_subj_{subject_nr}_{timestamp}.csv")
     et_log   = os.path.join(results_dir, f"gazepoint_data_{task_name}_subj_{subject_nr}_{timestamp}")
     return log_file, et_log

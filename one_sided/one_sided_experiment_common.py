@@ -36,9 +36,9 @@ Trial sequence (timings):
     7. ITI blank (end)                 1000 ms
 """
 
-import os
 import csv
 import ctypes
+import os
 from datetime import datetime
 
 # -- Make this process DPI-aware BEFORE any window is created -----------------
@@ -59,14 +59,13 @@ os.environ["DISPTYPE"] = "psychopy"
 os.environ["TRACKERTYPE"] = "opengaze"
 
 # -- PsychoPy -----------------------------------------------------------------
-from psychopy import visual, core, event
-
 # -- PyGaze -------------------------------------------------------------------
 import pygaze
 import pygaze.settings as pygaze_settings
+from psychopy import core, event, visual
+from pygaze import libtime
 from pygaze.display import Display
 from pygaze.eyetracker import EyeTracker
-from pygaze import libtime
 
 # -----------------------------------------------------------------------------
 # CONFIGURATION
@@ -435,7 +434,7 @@ def prompt_subject_number(without_tracker=False):
 def make_log_paths(task_name, subject_nr):
     results_dir = os.path.join(os.path.dirname(__file__), "..", "results")
     os.makedirs(results_dir, exist_ok=True)
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')  # noqa: DTZ005 -- local wall-clock time for a human-readable filename
     log_file = os.path.join(results_dir, f"log_{task_name}_subj_{subject_nr}_{timestamp}.csv")
     et_log   = os.path.join(results_dir, f"gazepoint_data_{task_name}_subj_{subject_nr}_{timestamp}")
     return log_file, et_log

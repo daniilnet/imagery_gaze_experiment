@@ -19,9 +19,15 @@ See center_screen_experiment_common.py for the full per-trial timing breakdown.
 """
 
 from center_screen_experiment_common import (
-    load_trials, draw_text, wait_keypress, save_csv,
-    run_trials, setup_display_and_tracker,
-    prompt_subject_number, make_log_paths, quit_and_save,
+    draw_text,
+    load_trials,
+    make_log_paths,
+    prompt_subject_number,
+    quit_and_save,
+    run_trials,
+    save_csv,
+    setup_display_and_tracker,
+    wait_keypress,
 )
 
 # -----------------------------------------------------------------------------
