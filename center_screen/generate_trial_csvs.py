@@ -8,7 +8,7 @@ center_screen_imagery.py (imagery task) and center_screen_perception.py
     training_trials.csv              (4 trials  - imagery training)
     imagery_trials.csv               (60 trials - imagery task)
     perception_training_trials.csv   (4 trials  - perception training)
-    perception_trials.csv            (10 trials - perception task)
+    perception_trials.csv            (40 trials - perception task)
 
 Stimuli are shown in the center of the screen -- there is no left/right
 placement logic at all; only the presentation (preview) order and the
@@ -144,4 +144,4 @@ if __name__ == "__main__":
     write_csv("training_trials.csv",           n=4,  cue_seed=42, order_seed=142)
     write_csv("imagery_trials.csv",             n=60, cue_seed=43, order_seed=143)
     write_csv("perception_training_trials.csv", n=4,  cue_seed=44, order_seed=144)
-    write_csv("perception_trials.csv",          n=10, cue_seed=45, order_seed=145)
+    write_csv("perception_trials.csv",          n=40, cue_seed=45, order_seed=145)

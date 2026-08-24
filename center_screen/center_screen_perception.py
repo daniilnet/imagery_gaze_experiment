@@ -13,7 +13,8 @@ Design:
     then shown during the "imagery" period instead of a blank screen; no
     vividness / time-to-imagine ratings are collected.
 
-    Perception: 10 trials, run in a single block (no breaks).
+    Perception: 40 trials. Break screen after every 10 trials (except the
+               last).
 
 See center_screen_experiment_common.py for the full per-trial timing breakdown.
 """
@@ -36,6 +37,8 @@ from center_screen_experiment_common import (
 without_tracker = 1   # 1 = run experiment without eye tracker connected (testing).
                       # On-screen is identical to normal runtime; no ET/gaze data is logged.
 
+BREAK_EVERY_TRIALS = 10   # rest break after every N perception trials
+
 # -----------------------------------------------------------------------------
 # FIXED PSEUDORANDOM TRIAL ORDERS (see generate_trial_csvs.py)
 # Same cue / preview-order sequence for every participant; counterbalanced
@@ -57,7 +60,7 @@ def main():
     log_rows = []
     run_trials(win, tracker, FIXED_PERCEPTION_TRIALS, log_rows,
                start_trial_num=1, mode='perception',
-               break_every=None,
+               break_every=BREAK_EVERY_TRIALS,
                disp=disp, log_file=log_file, without_tracker=without_tracker)
 
     # -- Final save -------------------------------------------------------------
