@@ -1,0 +1,23 @@
+{
+    "files.watcherExclude": {
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "**/.venv/**": true,
+        "**/__pycache__/**": true,
+        "**/.ruff_cache/**": true,
+        "**/results/**": true
+    },
+    "search.exclude": {
+        "**/.venv": true,
+        "**/__pycache__": true,
+        "**/.ruff_cache": true,
+        "**/pool": true,
+        "**/screen_previews": true,
+        "**/results": true,
+        "uv.lock": true
+    },
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.ruff_cache": true
+    }
+}

@@ -9,9 +9,10 @@ Design:
     Stimuli are shown in the center of the screen -- no left/right logic at
     all. Every trial opens with the same two-stimulus preview used in the
     imagery task (face_center.png and house_center.png, back to back), in a
-    counterbalanced order (see generate_trial_csvs.py). The cued image is
-    then shown during the "imagery" period instead of a blank screen; no
-    vividness / time-to-imagine ratings are collected.
+    counterbalanced order (see generate_trial_csvs.py). Where the imagery
+    task shows its H/F cue, this task shows a fixation cross instead (same
+    300 ms duration), immediately followed by the cued image; no vividness /
+    time-to-imagine ratings are collected.
 
     Perception: 40 trials. Break screen after every 10 trials (except the
                last).
