@@ -27,6 +27,8 @@ import pygaze.settings as pygaze_settings
 from psychopy import core, event, visual
 from pygaze import libtime
 from pygaze._eyetracker.opengaze import OpenGazeTracker as _OpenGazeSocketTracker
+from pygaze._misc.misc import pos2psychopos, rgb2psychorgb
+from pygaze._screen.psychopyscreen import PsychoPyScreen as _PsychoPyScreen
 from pygaze.display import Display
 from pygaze.eyetracker import EyeTracker
 
@@ -216,6 +218,120 @@ def _wait_for_calibration_point_start_patched(self, timeout=10.0):
 _OpenGazeSocketTracker.get_calibration_points = _get_calibration_points_patched
 _OpenGazeSocketTracker.get_calibration_result = _get_calibration_result_patched
 _OpenGazeSocketTracker.wait_for_calibration_point_start = _wait_for_calibration_point_start_patched
+
+
+# -----------------------------------------------------------------------------
+# PATCH: pygaze's calibration screen leaks a fresh GPU-backed stimulus on
+# every animation frame -- froze the entire machine on a second recalibration
+# -----------------------------------------------------------------------------
+# pygaze._screen.psychopyscreen.PsychoPyScreen.clear()/draw_rect()/
+# draw_circle() each build a brand-new psychopy.visual.Rect/Circle object on
+# every single call and just drop the Python reference on the next clear()
+# (self.screen = []) -- never explicitly freeing the underlying GPU texture/
+# vertex buffer. EyeTracker.calibrate()'s per-point "shrinking dot" animation
+# calls clear() + draw_circle() x2 on *every displayed frame* for 1.5s per
+# calibration point: ~3 fresh stimuli/frame x ~90 frames (at 60Hz) x 9 points
+# is on the order of 2000+ never-freed GL objects per calibration pass. A
+# first recalibration has enough headroom to hide this; a second one in the
+# same session was enough to push the (Intel UHD, shared-memory) GPU driver
+# into a hang that froze the whole OS, not just this process -- requiring a
+# hard reset. (Confirmed by reading the vendored source in site-packages;
+# there is no other code path in this project that drives Screen this way.)
+#
+# Patched to what PsychoPy itself recommends: build each stimulus once and
+# reuse it every frame, updating position/size/colour in place instead of
+# reallocating. Scoped to clear()/draw_rect()/draw_circle() because those are
+# the only calls inside the hot per-frame loop; draw_text()/draw_line()/
+# draw_fixation() (results screen, once per point) aren't worth pooling.
+def _screen_clear_patched(self, colour=None, color=None):
+    if colour is None and color is not None:
+        colour = color
+    if colour is None:
+        colour = self.bgc
+    self.screen = []
+    self._rect_pool_used = 0
+    self._circle_pool_used = 0
+    self.draw_rect(colour=colour, x=0, y=0, w=self.dispsize[0],
+                   h=self.dispsize[1], fill=True)
+
+
+def _screen_draw_rect_patched(self, colour=None, color=None, x=None, y=None,
+                              w=50, h=50, pw=1, fill=False):
+    if colour is None and color is not None:
+        colour = color
+    if colour is None:
+        colour = self.fgc
+    if x is None:
+        x = self.dispsize[0] / 2
+    if y is None:
+        y = self.dispsize[1] / 2
+
+    colour = rgb2psychorgb(colour)
+    pos = pos2psychopos((x, y), dispsize=self.dispsize)
+    pos = pos[0] + w / 2, pos[1] - h / 2
+
+    pool = getattr(self, '_rect_pool_cache', None)
+    if pool is None:
+        pool = self._rect_pool_cache = []
+    idx = getattr(self, '_rect_pool_used', 0)
+    if idx < len(pool):
+        stim = pool[idx]
+    else:
+        stim = visual.Rect(pygaze.expdisplay, width=w, height=h)
+        pool.append(stim)
+    self._rect_pool_used = idx + 1
+
+    stim.size = (w, h)
+    stim.pos = pos
+    stim.lineWidth = pw
+    stim.colorSpace = 'rgb'
+    stim.lineColor = colour
+    if fill:
+        stim.fillColor = colour
+    else:
+        stim.fillColor = None
+    self.screen.append(stim)
+
+
+def _screen_draw_circle_patched(self, colour=None, color=None, pos=None,
+                                r=50, pw=1, fill=False):
+    if colour is None and color is not None:
+        colour = color
+    if colour is None:
+        colour = self.fgc
+    if pos is None:
+        pos = (self.dispsize[0] / 2, self.dispsize[1] / 2)
+
+    colour = rgb2psychorgb(colour)
+    pos = pos2psychopos(pos, dispsize=self.dispsize)
+
+    pool = getattr(self, '_circle_pool_cache', None)
+    if pool is None:
+        pool = self._circle_pool_cache = []
+    idx = getattr(self, '_circle_pool_used', 0)
+    if idx < len(pool):
+        stim = pool[idx]
+    else:
+        stim = visual.Circle(pygaze.expdisplay, edges=32)
+        pool.append(stim)
+    self._circle_pool_used = idx + 1
+
+    stim.pos = pos
+    stim.lineWidth = pw
+    stim.colorSpace = 'rgb'
+    stim.lineColor = colour
+    if fill:
+        stim.radius = r
+        stim.fillColor = colour
+    else:
+        stim.radius = r - pw
+        stim.fillColor = None
+    self.screen.append(stim)
+
+
+_PsychoPyScreen.clear = _screen_clear_patched
+_PsychoPyScreen.draw_rect = _screen_draw_rect_patched
+_PsychoPyScreen.draw_circle = _screen_draw_circle_patched
 
 SCREEN_W    = 1920
 SCREEN_H    = 1080
@@ -841,6 +957,35 @@ def report_sample_rate(win, tracker):
 
 
 # -----------------------------------------------------------------------------
+# GUARD: Alt (and other Windows "system" keys) can hang a fullscreen pyglet
+# window that has no menu bar
+# -----------------------------------------------------------------------------
+# pyglet's own win32 backend (pyglet/window/win32/__init__.py, _event_syscommand)
+# carries the comment "check for ALT key to prevent app from hanging because
+# there is no windows menu bar" -- Alt is a Windows *system* key (WM_SYSKEYDOWN/
+# WM_SYSKEYUP), and on a borderless/fullscreen window with no menu, Windows'
+# default handling for it (DefWindowProc) is exactly the kind of thing that
+# can wedge a fullscreen exclusive OpenGL window. pyglet's own mitigation only
+# covers one specific WM_SYSCOMMAND case. Requesting exclusive keyboard
+# capture is the robust fix: it stops WM_SYSKEYDOWN/UP from ever reaching
+# DefWindowProc at all, so Alt (or F10, or the Windows key) can't trigger any
+# OS-level handling while this window has focus. Space, 1-4, Escape, etc. are
+# all ordinary (non-system) keys and are unaffected.
+# Alt sits directly next to Space on a standard keyboard -- a participant
+# reaching for "press Space to continue" at the end of recalibration and
+# catching Alt instead is a very plausible way to trigger this.
+def _enable_exclusive_keyboard(win):
+    handle = getattr(win, "winHandle", None)
+    set_exclusive = getattr(handle, "set_exclusive_keyboard", None)
+    if set_exclusive is None:
+        return  # not the pyglet/win32 backend -- nothing to do
+    try:
+        set_exclusive(True)
+    except Exception as exc:  # noqa: BLE001 -- best-effort hardening, must not block startup
+        print(f"Warning: could not enable exclusive keyboard capture: {exc}")
+
+
+# -----------------------------------------------------------------------------
 # DISPLAY / EYE TRACKER SETUP
 # -----------------------------------------------------------------------------
 def setup_display_and_tracker(without_tracker, et_log):
@@ -852,6 +997,7 @@ def setup_display_and_tracker(without_tracker, et_log):
 
     disp = Display()
     win  = pygaze.expdisplay  # window PyGaze created, stored on the module
+    _enable_exclusive_keyboard(win)
     preload_stimuli(win)      # build every trial stimulus now, not mid-trial
     if without_tracker:
         tracker = None
