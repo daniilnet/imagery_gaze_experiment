@@ -27,8 +27,6 @@ import pygaze.settings as pygaze_settings
 from psychopy import core, event, visual
 from pygaze import libtime
 from pygaze._eyetracker.opengaze import OpenGazeTracker as _OpenGazeSocketTracker
-from pygaze._misc.misc import pos2psychopos, rgb2psychorgb
-from pygaze._screen.psychopyscreen import PsychoPyScreen as _PsychoPyScreen
 from pygaze.display import Display
 from pygaze.eyetracker import EyeTracker
 
@@ -121,217 +119,6 @@ def _process_incoming_patched(self):
 
 _OpenGazeSocketTracker._process_incoming = _process_incoming_patched
 
-
-# -----------------------------------------------------------------------------
-# PATCH: calibration crashes the whole process on the first recalibration
-# -----------------------------------------------------------------------------
-# pygaze's EyeTracker.calibrate() (pygaze/_eyetracker/libopengaze.py) polls
-# OpenGazeTracker.get_calibration_points() and .get_calibration_result() while
-# a calibration is running. Both index the incoming-message dict directly
-# (e.g. self._incoming['ACK']['CALIBRATE_ADDPOINT']['PTS']) instead of using
-# .get(). Given the malformed/truncated XML the tracker is already known to
-# send (see the patch above), a calibration message that arrives incomplete
-# raises KeyError/ValueError -- and unlike the _process_incoming bug, this
-# happens synchronously in the *main* thread, inside the experiment's own
-# call to tracker.calibrate(), so it takes the whole process down. Both
-# methods also acquire()/release() their lock manually with no try/finally,
-# so if the exception fires between the two, the lock is left held forever
-# and everything touching it afterwards hangs instead of crashing outright.
-# Patched to fail soft: return None (or drop just the bad point) instead of
-# raising. pygaze's own calibrate() already retries until it gets a non-None
-# result, so this just lets that existing retry loop do its job.
-def _get_calibration_points_patched(self):
-    acknowledged, _timeout = self._send_message(
-        'GET', 'CALIBRATE_ADDPOINT', values=None, wait_for_acknowledgement=True)
-    if not acknowledged:
-        return None
-    with self._inlock:
-        try:
-            ack = self._incoming['ACK']['CALIBRATE_ADDPOINT']
-            n = int(ack['PTS'])
-            return [(float(ack[f'X{i}']), float(ack[f'Y{i}']))
-                    for i in range(1, n + 1)]
-        except (KeyError, ValueError, TypeError):
-            return None
-
-
-def _get_calibration_result_patched(self):
-    params = ['CALX', 'CALY', 'LX', 'LY', 'LV', 'RX', 'RY', 'RV']
-    with self._inlock:
-        if ('CAL' not in self._incoming
-                or 'CALIB_RESULT' not in self._incoming['CAL']):
-            return None
-        try:
-            cal = copy.deepcopy(self._incoming['CAL']['CALIB_RESULT'])
-            n_points = (len(cal.keys()) - 1) // len(params)
-            points = []
-            for i in range(1, n_points + 1):
-                p = {}
-                for par in params:
-                    key = f'{par}{i}'
-                    p[par] = (cal[key] == '1') if par in ('LV', 'RV') else float(cal[key])
-                points.append(p)
-            return points
-        except (KeyError, ValueError, TypeError):
-            return None
-
-
-def _wait_for_calibration_point_start_patched(self, timeout=10.0):
-    start = time.time()
-    t0 = None
-    while (t0 is None) and (time.time() - start < timeout):
-        with self._inlock:
-            try:
-                t0 = self._incoming['ACK']['CALIBRATE_START']['t']
-            except (KeyError, TypeError):
-                t0 = None
-        if t0 is None:
-            time.sleep(0.001)
-    if t0 is None:
-        return None
-
-    pos = None
-    pt_nr = None
-    started = False
-    timed_out = False
-    while (not started) and (not timed_out):
-        with self._inlock:
-            try:
-                t1 = self._incoming['CAL']['CALIB_START_PT']['t']
-                pt_nr_candidate = int(self._incoming['CAL']['CALIB_START_PT']['PT'])
-                x = float(self._incoming['CAL']['CALIB_START_PT']['CALX'])
-                y = float(self._incoming['CAL']['CALIB_START_PT']['CALY'])
-            except (KeyError, ValueError, TypeError):
-                t1 = 0
-        if t1 and t1 >= t0 and pt_nr_candidate != self._current_calibration_point:
-            self._current_calibration_point = pt_nr_candidate
-            pt_nr, pos = pt_nr_candidate, (x, y)
-            started = True
-        if time.time() - start > timeout:
-            timed_out = True
-        elif not started:
-            time.sleep(0.001)
-
-    return (pt_nr, pos) if started else (None, None)
-
-
-_OpenGazeSocketTracker.get_calibration_points = _get_calibration_points_patched
-_OpenGazeSocketTracker.get_calibration_result = _get_calibration_result_patched
-_OpenGazeSocketTracker.wait_for_calibration_point_start = _wait_for_calibration_point_start_patched
-
-
-# -----------------------------------------------------------------------------
-# PATCH: pygaze's calibration screen leaks a fresh GPU-backed stimulus on
-# every animation frame -- froze the entire machine on a second recalibration
-# -----------------------------------------------------------------------------
-# pygaze._screen.psychopyscreen.PsychoPyScreen.clear()/draw_rect()/
-# draw_circle() each build a brand-new psychopy.visual.Rect/Circle object on
-# every single call and just drop the Python reference on the next clear()
-# (self.screen = []) -- never explicitly freeing the underlying GPU texture/
-# vertex buffer. EyeTracker.calibrate()'s per-point "shrinking dot" animation
-# calls clear() + draw_circle() x2 on *every displayed frame* for 1.5s per
-# calibration point: ~3 fresh stimuli/frame x ~90 frames (at 60Hz) x 9 points
-# is on the order of 2000+ never-freed GL objects per calibration pass. A
-# first recalibration has enough headroom to hide this; a second one in the
-# same session was enough to push the (Intel UHD, shared-memory) GPU driver
-# into a hang that froze the whole OS, not just this process -- requiring a
-# hard reset. (Confirmed by reading the vendored source in site-packages;
-# there is no other code path in this project that drives Screen this way.)
-#
-# Patched to what PsychoPy itself recommends: build each stimulus once and
-# reuse it every frame, updating position/size/colour in place instead of
-# reallocating. Scoped to clear()/draw_rect()/draw_circle() because those are
-# the only calls inside the hot per-frame loop; draw_text()/draw_line()/
-# draw_fixation() (results screen, once per point) aren't worth pooling.
-def _screen_clear_patched(self, colour=None, color=None):
-    if colour is None and color is not None:
-        colour = color
-    if colour is None:
-        colour = self.bgc
-    self.screen = []
-    self._rect_pool_used = 0
-    self._circle_pool_used = 0
-    self.draw_rect(colour=colour, x=0, y=0, w=self.dispsize[0],
-                   h=self.dispsize[1], fill=True)
-
-
-def _screen_draw_rect_patched(self, colour=None, color=None, x=None, y=None,
-                              w=50, h=50, pw=1, fill=False):
-    if colour is None and color is not None:
-        colour = color
-    if colour is None:
-        colour = self.fgc
-    if x is None:
-        x = self.dispsize[0] / 2
-    if y is None:
-        y = self.dispsize[1] / 2
-
-    colour = rgb2psychorgb(colour)
-    pos = pos2psychopos((x, y), dispsize=self.dispsize)
-    pos = pos[0] + w / 2, pos[1] - h / 2
-
-    pool = getattr(self, '_rect_pool_cache', None)
-    if pool is None:
-        pool = self._rect_pool_cache = []
-    idx = getattr(self, '_rect_pool_used', 0)
-    if idx < len(pool):
-        stim = pool[idx]
-    else:
-        stim = visual.Rect(pygaze.expdisplay, width=w, height=h)
-        pool.append(stim)
-    self._rect_pool_used = idx + 1
-
-    stim.size = (w, h)
-    stim.pos = pos
-    stim.lineWidth = pw
-    stim.colorSpace = 'rgb'
-    stim.lineColor = colour
-    if fill:
-        stim.fillColor = colour
-    else:
-        stim.fillColor = None
-    self.screen.append(stim)
-
-
-def _screen_draw_circle_patched(self, colour=None, color=None, pos=None,
-                                r=50, pw=1, fill=False):
-    if colour is None and color is not None:
-        colour = color
-    if colour is None:
-        colour = self.fgc
-    if pos is None:
-        pos = (self.dispsize[0] / 2, self.dispsize[1] / 2)
-
-    colour = rgb2psychorgb(colour)
-    pos = pos2psychopos(pos, dispsize=self.dispsize)
-
-    pool = getattr(self, '_circle_pool_cache', None)
-    if pool is None:
-        pool = self._circle_pool_cache = []
-    idx = getattr(self, '_circle_pool_used', 0)
-    if idx < len(pool):
-        stim = pool[idx]
-    else:
-        stim = visual.Circle(pygaze.expdisplay, edges=32)
-        pool.append(stim)
-    self._circle_pool_used = idx + 1
-
-    stim.pos = pos
-    stim.lineWidth = pw
-    stim.colorSpace = 'rgb'
-    stim.lineColor = colour
-    if fill:
-        stim.radius = r
-        stim.fillColor = colour
-    else:
-        stim.radius = r - pw
-        stim.fillColor = None
-    self.screen.append(stim)
-
-
-_PsychoPyScreen.clear = _screen_clear_patched
-_PsychoPyScreen.draw_rect = _screen_draw_rect_patched
-_PsychoPyScreen.draw_circle = _screen_draw_circle_patched
 
 SCREEN_W    = 1920
 SCREEN_H    = 1080
@@ -768,50 +555,19 @@ def emergency_quit():
 
 
 # -----------------------------------------------------------------------------
-# RECALIBRATION  (run at the end of every break)
-# -----------------------------------------------------------------------------
-def recalibrate(win, tracker):
-    """
-    Runs pygaze's calibration screen, then hands control back.
-
-    tracker.calibrate() is pygaze's own routine (calibration dots, its own
-    keyboard handling) -- it draws through the same PsychoPy window as the
-    rest of this experiment (pygaze.expdisplay), so it's safe to drop into
-    mid-session. The try/except is a last line of defense on top of the
-    get_calibration_points/get_calibration_result/wait_for_calibration_point_
-    start patches above: those fix the known crash, this makes sure that if
-    OpenGaze does something else unanticipated, the session survives it and
-    keeps running rather than losing all remaining data.
-    """
-    tracker.log("RecalibrationStart")
-    try:
-        success = tracker.calibrate()
-    except Exception as exc:  # noqa: BLE001 -- must not crash the session
-        print(f"Warning: recalibration raised {exc!r}; continuing without it.")
-        success = False
-    tracker.log(f"RecalibrationEnd_success_{bool(success)}")
-    # calibrate() leaves its own stimuli in the back buffer; clear them so the
-    # next screen (drawn through this file's own draw_* helpers) starts clean.
-    draw_blank(win)
-
-
-# -----------------------------------------------------------------------------
 # BREAK SCREEN  (saves data; shows space to continue, accepts q to quit)
 # -----------------------------------------------------------------------------
 def break_screen(win, tracker, disp, log_rows, log_file, without_tracker):
     """
     Shows a break screen. Saves data automatically.
     Participant sees only the space-to-continue prompt.
-    Experimenter can press Q to save and quit. Otherwise, recalibrates before
-    handing control back to the trial loop.
+    Experimenter can press Q to save and quit.
     """
     save_csv(log_rows, log_file, without_tracker)
     draw_text(win, "Take a short break.\n\nPress SPACE to continue.")
     key = wait_keypress(win, keys=['space', 'q'])
     if key == 'q':
         quit_and_save(win, tracker, disp, log_rows, log_file, without_tracker)
-    if tracker:
-        recalibrate(win, tracker)
 
 
 # -----------------------------------------------------------------------------
@@ -972,8 +728,8 @@ def report_sample_rate(win, tracker):
 # OS-level handling while this window has focus. Space, 1-4, Escape, etc. are
 # all ordinary (non-system) keys and are unaffected.
 # Alt sits directly next to Space on a standard keyboard -- a participant
-# reaching for "press Space to continue" at the end of recalibration and
-# catching Alt instead is a very plausible way to trigger this.
+# reaching for "press Space to continue" at a break screen and catching Alt
+# instead is a very plausible way to trigger this.
 def _enable_exclusive_keyboard(win):
     handle = getattr(win, "winHandle", None)
     set_exclusive = getattr(handle, "set_exclusive_keyboard", None)
