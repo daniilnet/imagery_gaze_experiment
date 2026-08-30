@@ -1,8 +1,8 @@
 """
-one_sided_experiment_common.py
+multi_stim_experiment_common.py
 
 Shared configuration, PsychoPy/PyGaze setup, and trial-running logic used by
-both one_sided_imagery.py (imagery task) and one_sided_perception.py
+both multi_stim_imagery.py (imagery task) and multi_stim_perception.py
 (perception task). Neither task script imports the other -- they are run as
 separate sessions.
 
@@ -17,14 +17,21 @@ Dependencies:
 Folder structure expected (relative to the project root, one level up from
 this file):
     pool/
-        face_right.png      house_right.png
+        face1_left.png   face1_right.png   ...   face4_left.png   face4_right.png
+        house1_left.png  house1_right.png  ...   house4_left.png  house4_right.png
+
+    Each face/house identity (1-4) has a "_left" and "_right" render (the
+    picture-frame content sits on the left or right side of the same room
+    scene). Which identity and which side is used for each stimulus on each
+    trial is fixed per-participant by the trial CSVs (see
+    generate_trial_csvs.py) and counterbalanced across the session.
 
 Eye tracker: Gazepoint (OpenGaze protocol).
 """
 
+import os
 import csv
 import ctypes
-import os
 from datetime import datetime
 
 # Must run before any window is created, or Windows display scaling makes
@@ -41,12 +48,13 @@ except (AttributeError, OSError):
 os.environ["DISPTYPE"] = "psychopy"
 os.environ["TRACKERTYPE"] = "opengaze"
 
+from psychopy import visual, core, event
+
 import pygaze
 import pygaze.settings as pygaze_settings
-from psychopy import core, event, visual
-from pygaze import libtime
 from pygaze.display import Display
 from pygaze.eyetracker import EyeTracker
+from pygaze import libtime
 
 SCREEN_W    = 1920
 SCREEN_H    = 1080   # change on lab computer
@@ -55,9 +63,6 @@ FG_COLOR    = "white"
 CUE_COLOR   = (180, 180, 180)  # light gray, rgb255
 POOL_DIR    = os.path.join(os.path.dirname(__file__), "..", "pool")
 IMAGE_SCALE = 1.5
-
-FACE_IMAGE  = "face_right.png"
-HOUSE_IMAGE = "house_right.png"
 
 # Timing (ms)
 T_ITI            = 1000   # inter-trial interval, start and end of each trial
@@ -78,6 +83,8 @@ def load_trials(filename):
         rows = list(reader)
     for row in rows:
         row["trial_num"] = int(row["trial_num"])
+        row["face_id"]   = int(row["face_id"])
+        row["house_id"]  = int(row["house_id"])
     return rows
 
 
@@ -177,6 +184,13 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
     """Runs one full trial. tracker=None skips all ET calls (training)."""
     cue          = trial_def["cue"]
     cued_image   = trial_def["cued_image"]
+    cued_side    = trial_def["cued_side"]
+    face_id      = trial_def["face_id"]
+    face_side    = trial_def["face_side"]
+    face_image   = trial_def["face_image"]
+    house_id     = trial_def["house_id"]
+    house_side   = trial_def["house_side"]
+    house_image  = trial_def["house_image"]
     first_image  = trial_def["first_image"]
     second_image = trial_def["second_image"]
     tag          = "training" if is_training else f"{mode}_{trial_num}"
@@ -250,6 +264,13 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
         tracker.log_var("trial_num",    trial_num)
         tracker.log_var("cue",          cue)
         tracker.log_var("cued_image",   cued_image)
+        tracker.log_var("cued_side",    cued_side)
+        tracker.log_var("face_id",      face_id)
+        tracker.log_var("face_side",    face_side)
+        tracker.log_var("face_image",   face_image)
+        tracker.log_var("house_id",     house_id)
+        tracker.log_var("house_side",   house_side)
+        tracker.log_var("house_image",  house_image)
         tracker.log_var("first_image",  first_image)
         tracker.log_var("second_image", second_image)
         if vividness is not None:
@@ -268,6 +289,13 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
             "trial_num":       trial_num,
             "cue":             cue,
             "cued_image":      cued_image,
+            "cued_side":       cued_side,
+            "face_id":         face_id,
+            "face_side":       face_side,
+            "face_image":      face_image,
+            "house_id":        house_id,
+            "house_side":      house_side,
+            "house_image":     house_image,
             "first_image":     first_image,
             "second_image":    second_image,
             "vividness":       vividness,
@@ -350,7 +378,7 @@ def prompt_subject_number(without_tracker=False):
 def make_log_paths(task_name, subject_nr):
     results_dir = os.path.join(os.path.dirname(__file__), "..", "results")
     os.makedirs(results_dir, exist_ok=True)
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')  # noqa: DTZ005 -- local time for filename
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     log_file = os.path.join(results_dir, f"log_{task_name}_subj_{subject_nr}_{timestamp}.csv")
     et_log   = os.path.join(results_dir, f"gazepoint_data_{task_name}_subj_{subject_nr}_{timestamp}")
     return log_file, et_log

@@ -1,0 +1,9 @@
+trial_num,cue,cued_image,cued_side,face_id,face_side,face_image,house_id,house_side,house_image,first_image,second_image
+1,F,face1_right.png,right,1,right,face1_right.png,3,left,house3_left.png,face1_right.png,house3_left.png
+2,H,house3_right.png,right,4,left,face4_left.png,3,right,house3_right.png,house3_right.png,face4_left.png
+3,H,house4_right.png,right,2,left,face2_left.png,4,right,house4_right.png,house4_right.png,face2_left.png
+4,F,face4_right.png,right,4,right,face4_right.png,2,left,house2_left.png,face4_right.png,house2_left.png
+5,H,house1_right.png,right,3,left,face3_left.png,1,right,house1_right.png,house1_right.png,face3_left.png
+6,F,face2_right.png,right,2,right,face2_right.png,1,left,house1_left.png,face2_right.png,house1_left.png
+7,H,house4_right.png,right,1,left,face1_left.png,4,right,house4_right.png,house4_right.png,face1_left.png
+8,F,face3_right.png,right,3,right,face3_right.png,2,left,house2_left.png,face3_right.png,house2_left.png

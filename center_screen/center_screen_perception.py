@@ -40,11 +40,6 @@ without_tracker = 1   # 1 = run experiment without eye tracker connected (testin
 
 BREAK_EVERY_TRIALS = 10   # rest break after every N perception trials
 
-# -----------------------------------------------------------------------------
-# FIXED PSEUDORANDOM TRIAL ORDERS (see generate_trial_csvs.py)
-# Same cue / preview-order sequence for every participant; counterbalanced
-# 50/50 with no more than 2 identical values in a row.
-# -----------------------------------------------------------------------------
 FIXED_PERCEPTION_TRIALS = load_trials("perception_trials.csv")
 
 
@@ -54,7 +49,6 @@ def main():
 
     disp, win, tracker = setup_display_and_tracker(without_tracker, et_log)
 
-    # -- Perception start -------------------------------------------------------
     draw_text(win, "Perception section\n\nPress SPACE to begin.")
     wait_keypress(win, keys=['space'])
 
@@ -64,16 +58,11 @@ def main():
                break_every=BREAK_EVERY_TRIALS,
                disp=disp, log_file=log_file, without_tracker=without_tracker)
 
-    # -- Final save -------------------------------------------------------------
     save_csv(log_rows, log_file, without_tracker)
 
-    # -- End screen -----------------------------------------------------------
     draw_text(win, "Experiment complete!  Thank you.\n\nPress SPACE to exit.")
     wait_keypress(win, keys=['space'])
 
-    # Cleanup -- quit_and_save() closes the display exactly once (disp and win
-    # are the same PsychoPy window) and always closes the tracker, which is
-    # what lets OpenGaze's non-daemon threads exit.
     quit_and_save(win, tracker, disp, log_rows, log_file, without_tracker)
 
 

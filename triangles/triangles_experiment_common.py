@@ -1,8 +1,8 @@
 """
-one_sided_experiment_common.py
+triangles_experiment_common.py
 
 Shared configuration, PsychoPy/PyGaze setup, and trial-running logic used by
-both one_sided_imagery.py (imagery task) and one_sided_perception.py
+both triangles_imagery.py (imagery task) and triangles_perception.py
 (perception task). Neither task script imports the other -- they are run as
 separate sessions.
 
@@ -17,14 +17,14 @@ Dependencies:
 Folder structure expected (relative to the project root, one level up from
 this file):
     pool/
-        face_right.png      house_right.png
+        up.png      down.png
 
 Eye tracker: Gazepoint (OpenGaze protocol).
 """
 
+import os
 import csv
 import ctypes
-import os
 from datetime import datetime
 
 # Must run before any window is created, or Windows display scaling makes
@@ -41,12 +41,13 @@ except (AttributeError, OSError):
 os.environ["DISPTYPE"] = "psychopy"
 os.environ["TRACKERTYPE"] = "opengaze"
 
+from psychopy import visual, core, event
+
 import pygaze
 import pygaze.settings as pygaze_settings
-from psychopy import core, event, visual
-from pygaze import libtime
 from pygaze.display import Display
 from pygaze.eyetracker import EyeTracker
+from pygaze import libtime
 
 SCREEN_W    = 1920
 SCREEN_H    = 1080   # change on lab computer
@@ -54,15 +55,15 @@ FULLSCREEN  = True
 FG_COLOR    = "white"
 CUE_COLOR   = (180, 180, 180)  # light gray, rgb255
 POOL_DIR    = os.path.join(os.path.dirname(__file__), "..", "pool")
-IMAGE_SCALE = 1.5
+IMAGE_SCALE = 1.0   # stimuli are already 1920x1080 -- fill the screen as-is
 
-FACE_IMAGE  = "face_right.png"
-HOUSE_IMAGE = "house_right.png"
+UP_IMAGE    = "up.png"
+DOWN_IMAGE  = "down.png"
 
 # Timing (ms)
 T_ITI            = 1000   # inter-trial interval, start and end of each trial
 T_FIXATION       = 1500   # fixation cross
-T_CUE            = 300    # H/F cue, center of screen (imagery only)
+T_CUE            = 300    # up/down arrow cue, center of screen (imagery only)
 T_IMAGERY_BLANK  = 3000   # blank imagery period (imagery mode)
 T_PERCEPTION_IMG = 3000   # cued image display duration (perception mode)
 T_INTRO_IMG      = 1500   # each two-stimulus preview image on screen
@@ -73,7 +74,7 @@ T_TAG_GAP        = 30     # lets EndStep4 land in a gaze sample (150Hz) before
 
 def load_trials(filename):
     path = os.path.join(os.path.dirname(__file__), filename)
-    with open(path, newline="") as f:
+    with open(path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
     for row in rows:
@@ -199,7 +200,7 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
     if tracker:
         tracker.log(f"{tag}_EndFixation_at_{libtime.get_time()}")
 
-    # 3. H/F cue (imagery only)
+    # 3. Up/down arrow cue (imagery only)
     if mode != 'perception':
         t0 = draw_text(win, cue, height=60, color=CUE_COLOR, color_space='rgb255')
         if tracker:
@@ -350,7 +351,7 @@ def prompt_subject_number(without_tracker=False):
 def make_log_paths(task_name, subject_nr):
     results_dir = os.path.join(os.path.dirname(__file__), "..", "results")
     os.makedirs(results_dir, exist_ok=True)
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')  # noqa: DTZ005 -- local time for filename
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     log_file = os.path.join(results_dir, f"log_{task_name}_subj_{subject_nr}_{timestamp}.csv")
     et_log   = os.path.join(results_dir, f"gazepoint_data_{task_name}_subj_{subject_nr}_{timestamp}")
     return log_file, et_log

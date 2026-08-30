@@ -1,0 +1,11 @@
+trial_num,cue,cued_image,first_image,second_image
+1,↑,up.png,down.png,up.png
+2,↓,down.png,up.png,down.png
+3,↓,down.png,up.png,down.png
+4,↑,up.png,down.png,up.png
+5,↑,up.png,up.png,down.png
+6,↓,down.png,down.png,up.png
+7,↓,down.png,up.png,down.png
+8,↑,up.png,up.png,down.png
+9,↑,up.png,down.png,up.png
+10,↓,down.png,down.png,up.png

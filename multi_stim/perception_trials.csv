@@ -1,0 +1,17 @@
+trial_num,cue,cued_image,cued_side,face_id,face_side,face_image,house_id,house_side,house_image,first_image,second_image
+1,H,house4_right.png,right,1,left,face1_left.png,4,right,house4_right.png,face1_left.png,house4_right.png
+2,F,face4_right.png,right,4,right,face4_right.png,1,left,house1_left.png,face4_right.png,house1_left.png
+3,H,house2_left.png,left,1,right,face1_right.png,2,left,house2_left.png,house2_left.png,face1_right.png
+4,H,house1_left.png,left,3,right,face3_right.png,1,left,house1_left.png,house1_left.png,face3_right.png
+5,F,face4_right.png,right,4,right,face4_right.png,2,left,house2_left.png,face4_right.png,house2_left.png
+6,H,house3_right.png,right,3,left,face3_left.png,3,right,house3_right.png,house3_right.png,face3_left.png
+7,F,face4_left.png,left,4,left,face4_left.png,4,right,house4_right.png,face4_left.png,house4_right.png
+8,F,face3_right.png,right,3,right,face3_right.png,4,left,house4_left.png,house4_left.png,face3_right.png
+9,H,house1_left.png,left,2,right,face2_right.png,1,left,house1_left.png,face2_right.png,house1_left.png
+10,F,face1_right.png,right,1,right,face1_right.png,3,left,house3_left.png,house3_left.png,face1_right.png
+11,H,house2_right.png,right,2,left,face2_left.png,2,right,house2_right.png,face2_left.png,house2_right.png
+12,F,face1_left.png,left,1,left,face1_left.png,3,right,house3_right.png,house3_right.png,face1_left.png
+13,H,house4_left.png,left,2,right,face2_right.png,4,left,house4_left.png,face2_right.png,house4_left.png
+14,H,house3_right.png,right,4,left,face4_left.png,3,right,house3_right.png,house3_right.png,face4_left.png
+15,F,face2_left.png,left,2,left,face2_left.png,2,right,house2_right.png,house2_right.png,face2_left.png
+16,F,face3_left.png,left,3,left,face3_left.png,1,right,house1_right.png,face3_left.png,house1_right.png

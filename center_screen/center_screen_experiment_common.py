@@ -6,11 +6,8 @@ import socket
 import time
 from datetime import datetime
 
-# Make this process DPI-aware BEFORE any window is created
-# Without this, Windows display scaling (e.g. 125%/150% on a laptop) reports a
-# smaller virtual resolution to the process than the panel's real pixel size,
-# so the hardcoded SCREEN_W/SCREEN_H below no longer matches the window
-# PsychoPy actually creates, and stimuli render far larger than intended.
+# Must run before any window is created, or Windows display scaling makes
+# stimuli render far larger than SCREEN_W/SCREEN_H intend.
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(2)  # per-monitor DPI aware
 except (AttributeError, OSError):
@@ -31,23 +28,10 @@ from pygaze.display import Display
 from pygaze.eyetracker import EyeTracker
 
 
-# -----------------------------------------------------------------------------
-# PATCH: pygaze's OpenGaze socket-reader thread can crash mid-session
-# -----------------------------------------------------------------------------
-# OpenGazeTracker._process_incoming() (pygaze/_eyetracker/opengaze.py) reads
-# the tracker's TCP stream and splits it into messages. If a chunk happens to
-# contain no complete message (e.g. it's just a stray trailing "\r\n"), the
-# resulting `messages` list is empty, and the very next lines index into it
-# unconditionally -- an unhandled IndexError that silently kills this
-# background thread. Once it's dead, no more ACKs are ever recorded, so every
-# later tracker.log()/log_var()/start_recording()/stop_recording() call (each
-# of which blocks waiting for an ACK, retrying for up to 9s) stalls for
-# several seconds, on every single screen, for the rest of the session. This
-# is what caused the multi-second freezes seen starting partway through the
-# perception block for two different participants -- it's a race that gets
-# more likely to trigger the longer the session runs, not something specific
-# to those trials. Patched here (rather than editing site-packages) because
-# pygaze is reinstalled fresh from GitHub on every `uv sync`.
+# PATCH: pygaze's OpenGaze incoming-message thread raises IndexError (and
+# silently dies) on a chunk with no complete message, killing ACK handling
+# and stalling every later tracker.log()/log_var() call for up to 9s. Patched
+# here instead of site-packages since pygaze reinstalls fresh on `uv sync`.
 def _process_incoming_patched(self):
     self._debug_print("Incoming Thread started.")
 
@@ -70,8 +54,7 @@ def _process_incoming_patched(self):
 
         messages = [msg for msg in instring.splitlines() if msg.strip()]
 
-        # PATCH: nothing usable in this chunk -- leave any unfinished
-        # fragment buffered for next time instead of indexing an empty list.
+        # Nothing usable yet; keep buffering instead of indexing an empty list.
         if not messages:
             time.sleep(0.005)
             continue
@@ -84,11 +67,8 @@ def _process_incoming_patched(self):
 
         for msg in messages:
             self._debug_print(r"Incoming: {}".format(msg))
-            # PATCH: a message that's non-empty but still malformed (the same
-            # "frequently sends malformed XML" behaviour noted above) makes
-            # lxml raise inside _parse_msg. Uncaught, that's the same
-            # thread-killing failure as the empty-messages case -- drop just
-            # this one message instead.
+            # Malformed XML (GazePoint does this) would otherwise kill this
+            # thread the same way -- drop just this message instead.
             try:
                 command, msgdict = self._parse_msg(msg)
             except Exception:
@@ -130,24 +110,24 @@ IMAGE_SCALE = 0.3
 
 FACE_IMAGE  = "face_center.png"
 HOUSE_IMAGE = "house_center.png"
-CUES        = ("F", "H")   # every cue letter that can appear in a trial CSV
+CUES        = ("F", "H")
 
-# Per-image vertical nudge (pix, +up/-down) applied on top of screen-center
-# positioning -- lets the face/house be fine-tuned independently since their
-# "visual center of mass" differs from their pixel-center.
+# Per-image vertical nudge (px) since face/house differ in visual center of mass.
 IMAGE_Y_OFFSET = {
-    FACE_IMAGE:  -20,  # move down (px)
-    HOUSE_IMAGE:  20,  # move up (px)
+    FACE_IMAGE:  -20,
+    HOUSE_IMAGE:  20,
 }
 
 # Timing (ms)
-T_ITI            = 1000   # inter-trial interval, at both start and end of each trial
-T_PRECUE_BLANK   = 250    # blank between the trial-intro preview and the H/F cue / fixation cross
-T_CUE            = 300    # H/F cue (imagery mode) or fixation cross (perception mode), center of screen
+T_ITI            = 1000   # inter-trial interval, start and end of each trial
+T_PRECUE_BLANK   = 250    # blank between the preview and the cue/fixation cross
+T_CUE            = 400    # H/F cue (imagery) or fixation cross (perception)
 T_IMAGERY_BLANK  = 4000   # blank imagery period (imagery mode)
 T_PERCEPTION_IMG = 4000   # cued image display duration (perception mode)
 T_INTRO_IMG      = 1500   # each two-stimulus preview image on screen
 T_INTRO_BLANK    = 1000   # blank between the two preview images
+T_TAG_GAP        = 30     # lets EndStep4 land in a gaze sample (150Hz) before
+                          # being overwritten by StartVividnessRating
 
 
 def load_trials(filename):
@@ -165,25 +145,13 @@ def pool(filename):
 
 
 def wait_ms(ms):
-    # Hog the CPU only for the last 200 ms, as PsychoPy recommends. Hogging the
-    # whole interval spins core.wait's tight loop (which re-parses the pyglet
-    # version and pumps the window event queue on every pass) while holding the
-    # GIL, starving the OpenGaze client's background socket threads -- and those
-    # threads are what read samples off the tracker and queue them for the gaze
-    # file, so starving them costs samples.
+    # hogCPUperiod=0.2: hogging the whole wait starves the OpenGaze socket
+    # threads (and thus gaze samples) by holding the GIL.
     core.wait(ms / 1000.0, hogCPUperiod=0.2)
 
 
-# -----------------------------------------------------------------------------
-# STIMULUS CACHE
-# -----------------------------------------------------------------------------
-# Building a PsychoPy stimulus is expensive: ImageStim reads the PNG off disk
-# and uploads a texture, TextStim lays out and rasterises glyphs. Doing that
-# inside a trial puts disk and GPU work between the draw call and the flip,
-# which jitters the stimulus onset. So each stimulus is built once and then
-# only re-drawn. preload_stimuli() forces the trial-critical set to be built at
-# startup; everything else (instructions, break screens) is built on first use
-# and cached from then on.
+# Stimulus cache: building a PsychoPy stimulus (texture upload, glyph raster)
+# inside a trial would jitter stimulus onset, so each is built once and cached.
 _SIZE_CACHE  = {}
 _IMAGE_CACHE = {}
 _TEXT_CACHE  = {}
@@ -225,12 +193,8 @@ def _text_stim(win, text, height, color, color_space):
 
 
 def preload_stimuli(win):
-    """Build and warm every stimulus that appears inside a timed trial.
-
-    Each one is drawn once into the back buffer, which is then cleared without
-    a flip -- nothing reaches the screen, but the texture upload and the first
-    glyph rasterisation are already paid for by the time trial 1 starts.
-    """
+    """Draws every trial stimulus once (buffer cleared, no flip) so texture
+    upload/rasterisation is paid for before trial 1 starts."""
     for filename in (FACE_IMAGE, HOUSE_IMAGE):
         _image_stim(win, filename).draw()
     for cue in CUES:
@@ -279,11 +243,7 @@ def wait_keypress(win, keys=None):
             if pressed[0] == 'escape':
                 emergency_quit()
             return pressed[0]
-        # Yield the GIL between polls. event.getKeys() pumps the pyglet event
-        # queue on every call, so an unthrottled `while True` here saturates
-        # the interpreter -- during the rating screens, with recording live --
-        # and starves the OpenGaze socket threads. 1 ms keeps keypress latency
-        # far below one frame while leaving the CPU almost entirely free.
+        # Throttle -- an unthrottled loop here starves the OpenGaze socket threads.
         time.sleep(0.001)
 
 
@@ -338,27 +298,21 @@ def show_trial_intro(win, tracker, tag, first_image, second_image):
 
 def run_trial_sequence(win, tracker, trial_num, trial_def,
                        log_rows, is_training=False, mode='imagery'):
-    """
-    Runs one full trial, including the two-stimulus preview.
-    tracker=None  -> skips all ET calls (training).
-    mode='imagery'    -> step 4 is a blank imagery period.
-    mode='perception' -> step 4 shows the cued image.
-    Returns nothing; appends a row to log_rows (unless is_training).
-    """
+    """Runs one full trial. tracker=None skips all ET calls (training)."""
     cue          = trial_def["cue"]
     cued_image   = trial_def["cued_image"]
     first_image  = trial_def["first_image"]
     second_image = trial_def["second_image"]
     tag          = "training" if is_training else f"{mode}_{trial_num}"
 
-    # -- 0. Two-stimulus preview (counterbalanced order) -----------------------
+    # 0. Two-stimulus preview (counterbalanced order)
     show_trial_intro(win, tracker, tag, first_image, second_image)
 
-    # -- 1. ITI blank, start (1000 ms) ----------------------------------------
+    # 1. ITI blank, start
     draw_blank(win)
     wait_ms(T_ITI)
 
-    # -- 2. Blank, pre-cue (500 ms) --------------------------------------------
+    # 2. Pre-cue blank
     draw_blank(win)
     if tracker:
         tracker.log(f"{tag}_StartPrecueBlank_at_{libtime.get_time():.3f}")
@@ -366,7 +320,7 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
     if tracker:
         tracker.log(f"{tag}_EndPrecueBlank_at_{libtime.get_time():.3f}")
 
-    # -- 3. H/F cue (imagery) or fixation cross (perception) -- both 300 ms ----
+    # 3. H/F cue (imagery) or fixation cross (perception)
     if mode != 'perception':
         draw_text(win, cue, height=40, color=CUE_COLOR, color_space='rgb255')
         if tracker:
@@ -382,7 +336,7 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
         if tracker:
             tracker.log(f"{tag}_EndFixation_at_{libtime.get_time():.3f}")
 
-    # -- 4. Blank imagery period (imagery) or cued image (perception) ---------
+    # 4. Blank imagery period (imagery) or cued image (perception)
     if mode == 'perception':
         draw_image(win, cued_image)
         if tracker:
@@ -395,8 +349,9 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
         wait_ms(T_IMAGERY_BLANK)
     if tracker:
         tracker.log(f"{tag}_EndStep4_at_{libtime.get_time():.3f}")
+        wait_ms(T_TAG_GAP)
 
-    # -- 5-6. Ratings (imagery only, keypress 1-4) -----------------------------
+    # 5-6. Ratings (imagery only, keypress 1-4)
     vividness = None
     time_to_imagine = None
     if mode != 'perception':
@@ -412,10 +367,9 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
         if tracker:
             tracker.log(f"{tag}_TimeToImagineRating_{time_to_imagine}")
 
-    # -- 7. ITI blank, end (1000 ms) -------------------------------------------
+    # 7. ITI blank, end
     draw_blank(win)
 
-    # -- ET: log trial variables ------------------------------------------------
     if tracker:
         tracker.log_var("phase",        mode)
         tracker.log_var("trial_num",    trial_num)
@@ -430,7 +384,6 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
 
     wait_ms(T_ITI)
 
-    # -- CSV log (non-training trials only) -----------------------------------
     if not is_training:
         row = {
             "phase":           mode,
@@ -445,19 +398,11 @@ def run_trial_sequence(win, tracker, trial_num, trial_def,
         log_rows.append(row)
 
 
-# -----------------------------------------------------------------------------
-# RUN A FLAT LIST OF TRIALS, WITH AN OPTIONAL BREAK EVERY N TRIALS
-# -----------------------------------------------------------------------------
 def run_trials(win, tracker, trials, log_rows, start_trial_num,
                mode='imagery', is_training=False,
                break_every=None, disp=None, log_file=None, without_tracker=False):
-    """
-    Runs `trials` (a flat list of trial_def dicts) in order. If break_every
-    is set, shows a break screen after every N trials (except after the
-    final trial).
-    """
-    # Training passes a throwaway list and no log file; only register the real
-    # one, so an Escape during training cannot clobber the live session state.
+    """Runs `trials` in order, with a break screen every `break_every` trials."""
+    # Only register real sessions -- Escape during training must not clobber live state.
     if not is_training:
         register_session(log_rows=log_rows, log_file=log_file,
                          without_tracker=without_tracker)
@@ -475,9 +420,6 @@ def run_trials(win, tracker, trials, log_rows, start_trial_num,
     return trial_num
 
 
-# -----------------------------------------------------------------------------
-# TRAINING SESSION
-# -----------------------------------------------------------------------------
 def run_training(win, training_trials, mode='imagery'):
     run_trials(win, tracker=None, trials=training_trials, log_rows=[],
                start_trial_num=1, is_training=True, mode=mode)
@@ -486,12 +428,8 @@ def run_training(win, training_trials, mode='imagery'):
     core.wait(0.5)
 
 
-# -----------------------------------------------------------------------------
-# EXPERIMENTER QUIT  (save data and close everything down)
-# -----------------------------------------------------------------------------
-# Escape can be pressed from any screen, but wait_keypress() has no access to
-# the tracker or the log. Whatever a clean shutdown needs is registered here as
-# soon as it exists, so emergency_quit() can always do the full job.
+# EXPERIMENTER QUIT: wait_keypress() has no access to the tracker/log, so
+# whatever a clean shutdown needs is registered here as soon as it exists.
 _SESSION = {
     "win": None, "tracker": None, "disp": None,
     "log_rows": None, "log_file": None, "without_tracker": False,
@@ -499,7 +437,7 @@ _SESSION = {
 
 
 def register_session(**kwargs):
-    """Record what an Escape needs in order to shut down cleanly."""
+    """Records what an Escape needs to shut down cleanly."""
     for key, value in kwargs.items():
         if key not in _SESSION:
             raise KeyError(f"unknown session key: {key}")
@@ -508,40 +446,36 @@ def register_session(**kwargs):
 
 
 def quit_and_save(win, tracker, disp, log_rows, log_file, without_tracker):
-    """Save whatever has been logged, close everything down, exit.
+    """Save logged data, close everything down, exit.
 
-    tracker.close() is not optional. OpenGaze runs three NON-daemon threads
-    whose loops only end on the shutdown signal close() sends, so skipping it
-    makes the sys.exit() inside core.quit() block forever joining them --
-    leaving the fullscreen window up and the process needing to be killed.
-    Each step is guarded so that one failure cannot strand the rest.
+    tracker.close() is required -- OpenGaze's three non-daemon threads only
+    stop on that signal, so skipping it hangs core.quit() forever. Each step
+    is guarded so one failure can't strand the rest.
     """
     if log_rows is not None and log_file is not None:
         try:
             save_csv(log_rows, log_file, without_tracker)
-        except Exception as exc:  # noqa: BLE001 -- shutdown guard, must not skip the remaining steps
+        except Exception as exc:  # noqa: BLE001 -- must not abort shutdown
             print(f"Warning: could not save the behavioural log: {exc}")
 
     if tracker:
         try:
             tracker.stop_recording()
-        except Exception as exc:  # noqa: BLE001 -- shutdown guard, must not skip the remaining steps
+        except Exception as exc:  # noqa: BLE001 -- must not abort shutdown
             print(f"Warning: tracker.stop_recording() failed: {exc}")
         try:
             tracker.close()
-        except Exception as exc:  # noqa: BLE001 -- shutdown guard, must not skip the remaining steps
+        except Exception as exc:  # noqa: BLE001 -- must not abort shutdown
             print(f"Warning: tracker.close() failed: {exc}")
 
-    # pygaze's Display wraps pygaze.expdisplay, which *is* `win` -- so
-    # disp.close() and win.close() close the same PsychoPy window. Calling both
-    # re-enters an unguarded Window.close() and raises, which used to happen
-    # before core.quit() and so blocked the exit. Close once.
+    # disp.close() and win.close() close the same window -- call only one, or
+    # the second (unguarded) Window.close() raises and blocks exit.
     try:
         if disp is not None:
             disp.close()
         elif win is not None:
             win.close()
-    except Exception as exc:  # noqa: BLE001 -- shutdown guard, must not skip core.quit() below
+    except Exception as exc:  # noqa: BLE001 -- must not skip core.quit()
         print(f"Warning: display close failed: {exc}")
 
     core.quit()
@@ -554,15 +488,8 @@ def emergency_quit():
                   _SESSION["without_tracker"])
 
 
-# -----------------------------------------------------------------------------
-# BREAK SCREEN  (saves data; shows space to continue, accepts q to quit)
-# -----------------------------------------------------------------------------
 def break_screen(win, tracker, disp, log_rows, log_file, without_tracker):
-    """
-    Shows a break screen. Saves data automatically.
-    Participant sees only the space-to-continue prompt.
-    Experimenter can press Q to save and quit.
-    """
+    """Break screen: saves data, Space continues, Q saves and quits."""
     save_csv(log_rows, log_file, without_tracker)
     draw_text(win, "Take a short break.\n\nPress SPACE to continue.")
     key = wait_keypress(win, keys=['space', 'q'])
@@ -570,31 +497,16 @@ def break_screen(win, tracker, disp, log_rows, log_file, without_tracker):
         quit_and_save(win, tracker, disp, log_rows, log_file, without_tracker)
 
 
-# -----------------------------------------------------------------------------
-# START-OF-EXPERIMENT PROMPT  (space to continue, accepts q to save & quit)
-# -----------------------------------------------------------------------------
 def wait_start_keypress(win, tracker, disp, log_rows, log_file, without_tracker):
-    """
-    Like wait_keypress(keys=['space']), but the experimenter can press Q to
-    silently save whatever has been logged so far and quit. Participant sees
-    only the space-to-continue prompt already drawn on screen.
-    """
+    """Like wait_keypress(['space']), but Q saves and quits."""
     key = wait_keypress(win, keys=['space', 'q'])
     if key == 'q':
         quit_and_save(win, tracker, disp, log_rows, log_file, without_tracker)
     return key
 
 
-# -----------------------------------------------------------------------------
-# SUBJECT / LOG-FILE SETUP
-# -----------------------------------------------------------------------------
 def prompt_subject_number(without_tracker=False):
-    """
-    Normally prompts for and returns an integer subject number. In dev mode
-    (without_tracker=True), skips that prompt entirely -- no data will be
-    saved anyway -- and instead warns the experimenter and asks for
-    confirmation to continue.
-    """
+    """Prompts for a subject number, or in dev mode just confirms to continue."""
     if without_tracker:
         print("\n*** DEV MODE (without_tracker=1): no data will be saved. ***")
         while True:
@@ -616,38 +528,27 @@ def prompt_subject_number(without_tracker=False):
 def make_log_paths(task_name, subject_nr):
     results_dir = os.path.join(os.path.dirname(__file__), "..", "results")
     os.makedirs(results_dir, exist_ok=True)
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')  # noqa: DTZ005 -- local wall-clock time for a human-readable filename
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')  # noqa: DTZ005 -- local time for filename
     log_file = os.path.join(results_dir, f"log_{task_name}_subj_{subject_nr}_{timestamp}.csv")
     et_log   = os.path.join(results_dir, f"gazepoint_data_{task_name}_subj_{subject_nr}_{timestamp}")
     return log_file, et_log
 
 
-# -----------------------------------------------------------------------------
-# SAMPLE RATE CHECK
-# -----------------------------------------------------------------------------
-# pygaze's OpenGaze wrapper hardcodes self.samplerate = 60.0 and never
-# verifies it against the connected hardware (see libopengaze.py's own
-# "TODO: Compute after streaming some samples?"), so a 150Hz GP3 HD tracker
-# would be silently mislabeled. Measure it for real instead: watch the
-# device's own CNT counter (already streamed -- enable_send_counter(True) is
-# on by default) over a short recording window, and derive Hz from elapsed
-# wall time.
+# pygaze hardcodes samplerate=60.0 and never checks the hardware, which would
+# silently mislabel a 150Hz GP3 HD. Measure it for real via the CNT counter.
 KNOWN_SAMPLE_RATES_HZ   = (60, 150)   # Gazepoint GP3 / GP3 HD nominal rates
 EXPECTED_SAMPLE_RATE_HZ = 150         # this study's tracker (GP3 HD) -- flagged if unmet
 
 
 def _latest_cnt(tracker):
-    """Sample counter off the most recent REC message, or None if no gaze
-    sample has arrived yet."""
+    """Latest sample counter, or None if nothing has arrived yet."""
     rec = tracker.opengaze._incoming.get('REC', {}).get('NO_ID', {})
     cnt = rec.get('CNT')
     return int(cnt) if cnt is not None else None
 
 
 def measure_sample_rate(tracker, duration_ms=1000):
-    """Watches the sample stream briefly and returns the empirical sampling
-    rate in Hz, or None if no samples arrived (e.g. tracker not actually
-    connected). Assumes the tracker is already recording."""
+    """Empirical sampling rate in Hz, or None if no samples arrive."""
     tracker.log("SampleRateCheck_Start")
 
     # Wait for the first sample so _incoming['REC'] is populated.
@@ -675,15 +576,8 @@ def measure_sample_rate(tracker, duration_ms=1000):
 
 
 def report_sample_rate(win, tracker):
-    """Measures and displays the tracker's sampling rate before the
-    experiment starts, so a rate mismatch is caught before running a
-    participant, not discovered later while analysing the gaze data.
-
-    A rate other than EXPECTED_SAMPLE_RATE_HZ requires the experimenter to
-    type Y rather than just press SPACE, so a wrong device (e.g. a 60Hz GP3
-    swapped in for the study's 150Hz GP3 HD) can't be waved through by an
-    reflexive keypress.
-    """
+    """Checks sampling rate before the session starts. A mismatch requires
+    typing Y (not just Space) so a wrong device can't be waved through."""
     draw_text(win, "Checking eye tracker sampling rate...")
     hz = measure_sample_rate(tracker)
 
@@ -712,24 +606,10 @@ def report_sample_rate(win, tracker):
         wait_keypress(win, keys=['y'])
 
 
-# -----------------------------------------------------------------------------
-# GUARD: Alt (and other Windows "system" keys) can hang a fullscreen pyglet
-# window that has no menu bar
-# -----------------------------------------------------------------------------
-# pyglet's own win32 backend (pyglet/window/win32/__init__.py, _event_syscommand)
-# carries the comment "check for ALT key to prevent app from hanging because
-# there is no windows menu bar" -- Alt is a Windows *system* key (WM_SYSKEYDOWN/
-# WM_SYSKEYUP), and on a borderless/fullscreen window with no menu, Windows'
-# default handling for it (DefWindowProc) is exactly the kind of thing that
-# can wedge a fullscreen exclusive OpenGL window. pyglet's own mitigation only
-# covers one specific WM_SYSCOMMAND case. Requesting exclusive keyboard
-# capture is the robust fix: it stops WM_SYSKEYDOWN/UP from ever reaching
-# DefWindowProc at all, so Alt (or F10, or the Windows key) can't trigger any
-# OS-level handling while this window has focus. Space, 1-4, Escape, etc. are
-# all ordinary (non-system) keys and are unaffected.
-# Alt sits directly next to Space on a standard keyboard -- a participant
-# reaching for "press Space to continue" at a break screen and catching Alt
-# instead is a very plausible way to trigger this.
+# GUARD: Alt is a Windows "system" key that can hang a fullscreen pyglet
+# window with no menu bar (WM_SYSKEYDOWN -> DefWindowProc). Exclusive keyboard
+# capture stops it from ever reaching DefWindowProc. Worth guarding since Alt
+# sits right next to Space, which participants are told to press.
 def _enable_exclusive_keyboard(win):
     handle = getattr(win, "winHandle", None)
     set_exclusive = getattr(handle, "set_exclusive_keyboard", None)
@@ -737,15 +617,12 @@ def _enable_exclusive_keyboard(win):
         return  # not the pyglet/win32 backend -- nothing to do
     try:
         set_exclusive(True)
-    except Exception as exc:  # noqa: BLE001 -- best-effort hardening, must not block startup
+    except Exception as exc:  # noqa: BLE001 -- best-effort, must not block startup
         print(f"Warning: could not enable exclusive keyboard capture: {exc}")
 
 
-# -----------------------------------------------------------------------------
-# DISPLAY / EYE TRACKER SETUP
-# -----------------------------------------------------------------------------
 def setup_display_and_tracker(without_tracker, et_log):
-    # -- Let PyGaze own the window (prevents double-window on startup) --------
+    # Let PyGaze own the window (prevents double-window on startup).
     pygaze_settings.DISPSIZE   = (SCREEN_W, SCREEN_H)
     pygaze_settings.SCREENNR   = 0
     pygaze_settings.FULLSCREEN = FULLSCREEN
